@@ -1,0 +1,102 @@
+[
+  {
+    "clause_number": 1,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause serves as an introductory and definitional statement for the agreement. It establishes the document's title and execution date without imposing any operational duties or conditions, thus presenting no ambiguity."
+  },
+  {
+    "clause_number": 2,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause is a 'Whereas' recital, stating the RWA's desire to redevelop the property. It is purely declarative of intent and does not create any enforceable obligations or rights, hence it is unambiguous."
+  },
+  {
+    "clause_number": 3,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause is a 'Whereas' recital, indicating the Developer's agreement in principle to undertake redevelopment 'subject to the terms and conditions'. It is declarative of intent and context, not operational, and therefore lacks ambiguity itself."
+  },
+  {
+    "clause_number": 4,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [
+      "as per the approved plan"
+    ],
+    "analysis": "The phrase 'as per the approved plan' refers to an external document, which creates a 'Low' level of ambiguity. Disputes could arise if the 'approved plan' is not clearly identified, if multiple versions exist, or if its detailed specifications are themselves ambiguous, leading to disagreements on construction conformity."
+  },
+  {
+    "clause_number": 5,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "all approvals"
+    ],
+    "analysis": "The phrase 'all approvals' is a significant source of ambiguity. It does not specify which approvals (e.g., municipal, environmental, RWA, etc.) are required, from which authorities, or how their receipt is to be definitively documented. This lack of precision can lead to disputes regarding the legitimate commencement date of the 36-month construction period, with one party claiming approvals are not yet fully complete or valid."
+  },
+  {
+    "clause_number": 6,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "temporary relocation allowance",
+      "all existing residents"
+    ],
+    "analysis": "This clause is underspecified. 'A temporary relocation allowance' lacks any detail regarding its amount, calculation method, duration, or payment schedule, making it an inevitable point of contention. 'All existing residents' is also vague; it does not clarify eligibility criteria (e.g., owners vs. tenants, cutoff date for residency), potentially leading to disputes over who qualifies for the allowance."
+  },
+  {
+    "clause_number": 7,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "suitable for an SUV vehicle"
+    ],
+    "analysis": "The phrase 'suitable for an SUV vehicle' is subjective and lacks objective metrics. SUVs vary significantly in size, and what one party considers 'suitable' (e.g., minimum length, width, height, turning radius, ease of access) another may not. This ambiguity is a prime source for future disputes regarding the adequacy and practicality of provided parking spaces for different types of SUVs."
+  },
+  {
+    "clause_number": 8,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "as per applicable rules",
+      "exclusive right"
+    ],
+    "analysis": "The phrase 'as per applicable rules' references external regulations, which introduces a 'Low' level of ambiguity due to potential changes or interpretations of rules. However, the clause abruptly ends with 'and shall have exclusive right', which is dangerously vague as it grants an undefined 'exclusive right'. This incompleteness creates a significant potential for the Developer to assert broad, unspecified rights beyond what was intended, leading to substantial future disputes."
+  },
+  {
+    "clause_number": 9,
+    "ambiguity_level": "High",
+    "ambiguous_phrases": [
+      "any structural changes"
+    ],
+    "analysis": "The phrase 'any structural changes' grants unilateral, unfettered discretionary power to the Developer without any limitation or oversight from the RWA. This creates a 'High' risk of dispute as the Developer could make changes detrimental to the residents' interests (e.g., impacting safety, common areas, or aesthetic appeal), and the RWA would be contractually precluded from objecting, potentially forcing legal action despite the clause."
+  },
+  {
+    "clause_number": 10,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "the property"
+    ],
+    "analysis": "The phrase 'the property' is ambiguous. It is unclear whether this refers to the entire redevelopment land, specific constructed units belonging to the Developer, or other aspects of the project. The clause also lacks crucial details regarding the maximum mortgage amount, the priority of RWA's claims, or any protective measures for residents in case of Developer default, creating a significant future dispute risk concerning property encumbrance."
+  },
+  {
+    "clause_number": 11,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause clearly designates the jurisdiction for resolving 'Any disputes arising'. While it pertains to dispute resolution, the clause itself is unambiguous regarding its scope and application, thereby not contributing to the creation of ambiguity that causes disputes."
+  },
+  {
+    "clause_number": 12,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause is a standard boilerplate provision ensuring the agreement's binding nature on future entities and individuals associated with the original parties. It is clear and unambiguous in its intent and effect, and does not create operational ambiguity."
+  },
+  {
+    "clause_number": 13,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This is a standard 'In Witness Whereof' clause, serving as a formal declaration preceding the execution signatures. It is a boilerplate attestation and does not contain any operational ambiguity that would lead to disputes."
+  },
+  {
+    "clause_number": 14,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause constitutes the signature block for the parties involved. It serves an administrative purpose for execution but contains no substantive terms or conditions that could create future disputes."
+  }
+]

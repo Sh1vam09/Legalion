@@ -1,0 +1,101 @@
+[
+  {
+    "clause_number": 1,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause is purely introductory and definitional, establishing the name and date of the agreement without prescribing any operational duties or conditions."
+  },
+  {
+    "clause_number": 2,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This is a 'WHEREAS' clause, stating a premise rather than an operational term. It does not create any obligations or conditions, hence no ambiguity in its stated purpose."
+  },
+  {
+    "clause_number": 3,
+    "ambiguity_level": "High",
+    "ambiguous_phrases": [
+      "subject to the terms and"
+    ],
+    "analysis": "The clause states the Developer's agreement is 'subject to the terms and', which is an incomplete phrase. This creates fundamental uncertainty about the full scope of the conditions to which the Developer has agreed, potentially leading to disputes regarding the basis of their undertaking and allowing either party to argue about the omitted text."
+  },
+  {
+    "clause_number": 4,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [
+      "as per the approved plan"
+    ],
+    "analysis": "The phrase 'as per the approved plan' refers to an external document. Any ambiguity or lack of detail within the approved plan itself could lead to disputes regarding the exact specifications, design, or quality of construction. This requires careful cross-referencing and ensures the plan is sufficiently detailed."
+  },
+  {
+    "clause_number": 5,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "all approvals"
+    ],
+    "analysis": "The phrase 'all approvals' is vague. It does not specify which types of approvals (e.g., governmental, environmental, financial, RWA internal, occupancy certificates) are required, from which authorities, or who is responsible for obtaining them. This lack of specificity can lead to disputes regarding the commencement date of the 36-month period and who bears the risk of delayed or denied approvals."
+  },
+  {
+    "clause_number": 6,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "temporary relocation allowance",
+      "all existing residents"
+    ],
+    "analysis": "The terms 'temporary relocation allowance' and 'all existing residents' are significantly vague. The clause fails to specify the amount, duration, or calculation method for the allowance, nor does it define who qualifies as an 'existing resident' (e.g., owner, tenant, as of what date). This lack of detail is ripe for disputes regarding entitlement and quantum of payment."
+  },
+  {
+    "clause_number": 7,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "suitable for an SUV vehicle"
+    ],
+    "analysis": "The phrase 'suitable for an SUV vehicle' is subjective and lacks objective metrics. Different SUV models have varying dimensions, and 'suitable' can be interpreted differently regarding space, maneuverability, and access. This vagueness can lead to numerous disputes from flat owners who deem their allocated parking space unsuitable for their specific SUV."
+  },
+  {
+    "clause_number": 8,
+    "ambiguity_level": "High",
+    "ambiguous_phrases": [
+      "as per applicable rules",
+      "exclusive rig"
+    ],
+    "analysis": "The phrase 'as per applicable rules' refers to external regulations which can be subject to change or interpretation, introducing an element of uncertainty. More critically, the clause abruptly ends with 'exclusive rig', creating fundamental incompleteness about the full extent of the Developer's exclusive rights, which can lead to significant disputes and exploitation of this missing information."
+  },
+  {
+    "clause_number": 9,
+    "ambiguity_level": "High",
+    "ambiguous_phrases": [
+      "any structural changes"
+    ],
+    "analysis": "The phrase 'any structural changes' grants the Developer broad, unilateral discretionary power to alter the building's structure without requiring RWA consent or setting any limitations. This clause is dangerously vague and can lead to significant disputes if the RWA or residents perceive the changes as detrimental to safety, aesthetics, or property value, with no recourse defined."
+  },
+  {
+    "clause_number": 10,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "the property",
+      "during the construction period"
+    ],
+    "analysis": "The phrase 'the property' is ambiguous; it is unclear whether this refers to the entire redevelopment property, including existing residents' interests, or only the Developer's saleable portion. This lack of specificity could expose existing residents' property to significant risk. Additionally, 'during the construction period' is not precisely defined, leading to potential disputes over the permissible timeframe for mortgaging."
+  },
+  {
+    "clause_number": 11,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [],
+    "analysis": "This is a standard jurisdiction clause, defining the forum for dispute resolution. While 'Any disputes' is broad, its meaning is generally understood in a legal context and does not create operational ambiguity or duties for the parties, hence a low ambiguity level. No specific phrases are ambiguous within the context of jurisdiction."
+  },
+  {
+    "clause_number": 12,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause is standard boilerplate, defining the parties bound by the agreement. It is purely definitional and does not prescribe any operational duties or conditions, thus presenting no ambiguity for future disputes."
+  },
+  {
+    "clause_number": 13,
+    "ambiguity_level": "High",
+    "ambiguous_phrases": [
+      "day, month and yea"
+    ],
+    "analysis": "The attestation clause is incomplete, ending with 'day, month and yea' instead of 'day, month and year first above written' or similar. This drafting error makes the formal execution statement incomplete, potentially casting doubt on the precise date of execution if not correctly referenced elsewhere, or opening a technicality for challenges to the agreement's formal validity."
+  }
+]
