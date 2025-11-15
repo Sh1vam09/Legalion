@@ -1,6 +1,5 @@
 "use client";
 
-<<<<<<< HEAD
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDropzone } from "react-dropzone";
@@ -24,17 +23,6 @@ import {
   Eye
 } from "lucide-react";
 import { toast } from "sonner";
-=======
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useDropzone } from 'react-dropzone';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Navigation } from '@/components/navigation';
-import { Upload, FileText, CheckCircle, AlertCircle, X } from 'lucide-react';
-import { toast } from 'sonner';
->>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
 
 interface UploadedFile {
   file: File;
@@ -427,15 +415,9 @@ export default function UploadPage() {
   };
 
   return (
-<<<<<<< HEAD
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <Navigation />
 
-=======
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-blue-900 dark:to-purple-900">
-      <Navigation />
-      
->>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
       <div className="pt-32 pb-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
