@@ -6,10 +6,7 @@ import uuid
 import shutil
 from datetime import datetime
 import json
-<<<<<<< HEAD
 from starlette.staticfiles import StaticFiles # <-- ADD THIS IMPORT
-=======
->>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
 
 from notebook_module import (
     extract_text_from_pdf,
@@ -43,7 +40,6 @@ app.add_middleware(
 BASE_DIR = "data"
 os.makedirs(BASE_DIR, exist_ok=True)
 
-<<<<<<< HEAD
 # ----------------------------------------------------
 # FIX: MOUNT THE 'data' DIRECTORY FOR STATIC FILE SERVING
 # ----------------------------------------------------
@@ -51,8 +47,6 @@ app.mount("/data", StaticFiles(directory=BASE_DIR), name="data")
 # Now, requests to http://127.0.0.1:8000/data/... will be served directly from the local 'data' folder.
 # ----------------------------------------------------
 
-=======
->>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
@@ -175,11 +169,7 @@ async def generate_report(file_id: str): # `file_id` ensures specific user's dat
     if not os.path.exists(report_path):
         raise HTTPException(status_code=500, detail="Failed to generate PDF report.")
 
-<<<<<<< HEAD
     return FileResponse(report_path, media_type="application/pdf", content_disposition_type="inline")
-=======
-    return FileResponse(report_path, media_type="application/pdf", filename=f"Contract_Report_{file_id}.pdf")
->>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
 
 
 @app.delete("/files/{file_id}")

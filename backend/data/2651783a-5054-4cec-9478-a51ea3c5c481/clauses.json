@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 [
   {
     "clause_number": 1,
@@ -52,59 +51,4 @@
     "clause_number": 13,
     "content": "IN WITNESS WHEREOF, the parties hereto have executed this Agreement on the day, month and yea\nFor XYZ Builders:\nSignature:\nStamp: XYZ BUILDERS\nFor RWA:\nSignature:\nStamp: RESIDENTS WELFARE ASSN.\n\nSignature:\nStamp: [REDEVELOPMENT AUTHORITY]"
   }
-=======
-[
-  {
-    "clause_number": 1,
-    "content": "REDEVELOPMENT CONTRACT\nThis Redevelopment Agreement (\"Agreement\") is made on this 1st day of January, 2025, by and betwe"
-  },
-  {
-    "clause_number": 2,
-    "content": "WHEREAS the RWA is desirous of redeveloping the property situated at 123 Example Road, Mumbai,"
-  },
-  {
-    "clause_number": 3,
-    "content": "AND WHEREAS the Developer has agreed to undertake such redevelopment subject to the terms and\n\nSignature:\nStamp: [REDEVELOPMENT AUTHORITY]\n\nTERMS AND CONDITIONS"
-  },
-  {
-    "clause_number": 4,
-    "content": "1. The Developer shall construct a new residential building as per the approved plan."
-  },
-  {
-    "clause_number": 5,
-    "content": "2. The construction shall be completed within 36 months from the date of obtaining all approvals."
-  },
-  {
-    "clause_number": 6,
-    "content": "3. A temporary relocation allowance shall be paid to all existing residents."
-  },
-  {
-    "clause_number": 7,
-    "content": "4. SUV Parking Clause:\nEach flat owner will be entitled to one parking space suitable for an SUV vehicle in the newly devel"
-  },
-  {
-    "clause_number": 8,
-    "content": "5. The Developer shall be entitled to additional FSI as per applicable rules and shall have exclusive rig"
-  },
-  {
-    "clause_number": 9,
-    "content": "6. The RWA shall have no objection to any structural changes made during construction.\n\nSignature:\nStamp: [REDEVELOPMENT AUTHORITY]\n\nMISCELLANEOUS"
-  },
-  {
-    "clause_number": 10,
-    "content": "7. The Developer may mortgage the property during the construction period to raise funds."
-  },
-  {
-    "clause_number": 11,
-    "content": "8. Any disputes arising shall be subject to the jurisdiction of courts in Mumbai only."
-  },
-  {
-    "clause_number": 12,
-    "content": "9. This Agreement shall be binding on all successors, heirs, and legal representatives of both parties."
-  },
-  {
-    "clause_number": 13,
-    "content": "IN WITNESS WHEREOF, the parties hereto have executed this Agreement on the day, month and yea\nFor XYZ Builders:\nSignature:\nStamp: XYZ BUILDERS\nFor RWA:\nSignature:\nStamp: RESIDENTS WELFARE ASSN.\n\nSignature:\nStamp: [REDEVELOPMENT AUTHORITY]"
-  }
->>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
 ]
