@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 [
   {
     "clause_number": 1,
@@ -98,4 +99,106 @@
     "ambiguous_phrases": [],
     "analysis": "This clause is an attestation block, serving to document the execution of the agreement by the parties. It is purely procedural and contains no operational terms or subjective language that could lead to disputes. The typographical error 'yea' instead of 'year' is minor and does not introduce legal ambiguity."
   }
+=======
+[
+  {
+    "clause_number": 1,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause serves to identify the document and its effective date. It contains no operational terms, duties, or subjective language that could lead to disputes."
+  },
+  {
+    "clause_number": 2,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This is a 'WHEREAS' clause, providing background context for the RWA's desire for redevelopment. It is purely descriptive and does not create any operational duties or obligations."
+  },
+  {
+    "clause_number": 3,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This is a 'WHEREAS' clause, providing background context for the Developer's agreement to undertake the redevelopment. It is purely descriptive and does not create any operational duties or obligations."
+  },
+  {
+    "clause_number": 4,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [
+      "as per the approved plan"
+    ],
+    "analysis": "The phrase 'as per the approved plan' introduces a reference to an external document. This creates potential for dispute if the 'approved plan' is not clearly identified (e.g., by date, version number), contains ambiguities itself, or is subject to changes not explicitly governed by this agreement."
+  },
+  {
+    "clause_number": 5,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "all approvals"
+    ],
+    "analysis": "The phrase 'all approvals' is vague and lacks specificity. It does not define which specific authorities (e.g., municipal, environmental, fire department) or types of approvals are required, nor does it specify what constitutes 'obtaining' an approval (e.g., application submission, interim permission, final sanction). This ambiguity can lead to significant disputes over when the 36-month clock for completion actually begins, allowing one party to delay commencement by claiming 'all approvals' have not been secured."
+  },
+  {
+    "clause_number": 6,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "temporary relocation allowance",
+      "existing residents"
+    ],
+    "analysis": "The clause fails to specify the amount, duration, or mechanism for calculating the 'temporary relocation allowance.' This leaves the payment entirely open to dispute, as parties will likely have different expectations. Furthermore, 'all existing residents' is undefined (e.g., owners, tenants, residents on a specific date, number of individuals per flat), creating uncertainty regarding eligibility and the scope of the developer's obligation."
+  },
+  {
+    "clause_number": 7,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "suitable for an SUV vehicle"
+    ],
+    "analysis": "The term 'suitable for an SUV vehicle' is subjective and lacks objective, measurable criteria. SUV dimensions vary significantly, and what constitutes 'suitable' for one owner (e.g., basic footprint) may be deemed unsuitable by another (e.g., maneuverability, height clearance, ease of access, proximity to structural elements). This ambiguity is a high risk for future disputes regarding the adequacy of allocated parking spaces."
+  },
+  {
+    "clause_number": 8,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [
+      "as per applicable rules",
+      "exclusive rig"
+    ],
+    "analysis": "The phrase 'as per applicable rules' relies on external legal and regulatory frameworks, which can change or be subject to varying interpretations. This introduces an element of uncertainty due to reliance on information outside the direct control or express terms of this agreement. The incomplete phrase 'exclusive rig' also creates an immediate lack of clarity regarding the Developer's specific rights."
+  },
+  {
+    "clause_number": 9,
+    "ambiguity_level": "High",
+    "ambiguous_phrases": [
+      "any structural changes"
+    ],
+    "analysis": "The phrase 'any structural changes' grants dangerously broad and unilateral discretionary power to the Developer, removing the RWA's right to object to fundamental modifications to the building's design, safety, or integrity. This poses an extremely high risk for disputes, as the RWA could find itself without recourse even if changes adversely affect their property value, safety, or functional layout, without any specified limits, consultations, or approvals."
+  },
+  {
+    "clause_number": 10,
+    "ambiguity_level": "Medium",
+    "ambiguous_phrases": [
+      "the property",
+      "to raise funds"
+    ],
+    "analysis": "The term 'the property' is ambiguous regarding its scope (e.g., the land, the entire proposed building, only the developer's saleable portion, or common areas). This lack of clarity can lead to significant disputes if the Developer encumbers parts of the property that the RWA believes should remain unencumbered or communal. The purpose 'to raise funds' is broad and lacks specific limitations or oversight mechanisms, exposing the RWA to risks if the Developer defaults on the mortgage, potentially impacting the entire redevelopment project."
+  },
+  {
+    "clause_number": 11,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [
+      "Any disputes"
+    ],
+    "analysis": "While 'Any disputes' is broad, this clause is a standard jurisdictional provision intended to encompass all disagreements related to the contract. Its function is to define the forum for resolution rather than to describe a duty or condition. It relies on standard legal interpretation of what constitutes a 'dispute arising' from the agreement."
+  },
+  {
+    "clause_number": 12,
+    "ambiguity_level": "Low",
+    "ambiguous_phrases": [
+      "successors, heirs, and legal representatives"
+    ],
+    "analysis": "The terms 'successors, heirs, and legal representatives' are standard legal jargon with generally established meanings in contract law. While broad, their interpretation is usually well-defined, and their inclusion is standard practice to ensure contractual continuity, leading to a low ambiguity risk for disputes over their meaning."
+  },
+  {
+    "clause_number": 13,
+    "ambiguity_level": "None",
+    "ambiguous_phrases": [],
+    "analysis": "This clause is an attestation block, serving to document the execution of the agreement by the parties. It is purely procedural and contains no operational terms or subjective language that could lead to disputes. The typographical error 'yea' instead of 'year' is minor and does not introduce legal ambiguity."
+  }
+>>>>>>> c72386350dbf4ce3a9868a67c8d8b251ddd306cf
 ]
