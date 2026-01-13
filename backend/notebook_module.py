@@ -32,7 +32,7 @@ from reportlab.platypus.flowables import KeepTogether
 
 # Configure the API key for Google Generative AI
 # IMPORTANT: Replace with your actual API key.
-API_KEY = "AIzaSyAUfBI-ZVMikpsaOu4hZD9_JvTRWOra3WM" # <-- YOUR API KEY HERE
+API_KEY = "/" # <-- YOUR API KEY HERE
 genai.configure(api_key=API_KEY)
 
 # --- Model & API Configuration ---
