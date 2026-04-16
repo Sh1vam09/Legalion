@@ -13,27 +13,19 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Navigation } from "@/components/navigation";
-import { 
-  Upload, 
-  FileText, 
-  CheckCircle, 
-  AlertCircle, 
-  X,
-  Download,
-  Eye
-} from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, X, Download, Eye, TrendingUp, Info, KeyRound, ShieldCheck, Zap, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
 interface UploadedFile {
   file: File;
   id: string; // This will be the file_id from the backend
   status:
-    | "uploading"
-    | "segmenting"
-    | "analyzing_ambiguity"
-    | "deep_analysis"
-    | "complete"
-    | "error";
+  | "uploading"
+  | "segmenting"
+  | "analyzing_ambiguity"
+  | "deep_analysis"
+  | "complete"
+  | "error";
   progress: number;
   errorMessage?: string;
 }
@@ -41,9 +33,13 @@ interface UploadedFile {
 export default function UploadPage() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKeyTooltip, setShowApiKeyTooltip] = useState(false);
+  const [showApiKeyText, setShowApiKeyText] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-lite");
 
   // Function to run the analysis pipeline after a successful upload
-  const startAnalysis = async (fileId: string) => {
+  const startAnalysis = async (fileId: string, key: string) => {
     try {
       // Step 2: Segment Clauses (25%)
       setUploadedFiles((prev) =>
@@ -53,7 +49,7 @@ export default function UploadPage() {
       );
       const segmentResponse = await fetch(
         `http://127.0.0.1:8000/segment/${fileId}`,
-        { method: "POST" },
+        { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!segmentResponse.ok) throw new Error("Segmentation failed");
 
@@ -67,7 +63,7 @@ export default function UploadPage() {
       );
       const ambiguityResponse = await fetch(
         `http://127.0.0.1:8000/analyze/ambiguity/${fileId}`,
-        { method: "POST" },
+        { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!ambiguityResponse.ok) throw new Error("Ambiguity analysis failed");
 
@@ -79,7 +75,7 @@ export default function UploadPage() {
       );
       const deepAnalysisResponse = await fetch(
         `http://127.0.0.1:8000/analyze/deep/${fileId}`,
-        { method: "POST" },
+        { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!deepAnalysisResponse.ok) throw new Error("Deep analysis failed");
 
@@ -107,6 +103,11 @@ export default function UploadPage() {
 
   // Function to handle the initial file upload to the FastAPI backend
   const processFile = async (file: File) => {
+    if (!apiKey.trim()) {
+      toast.error("Please enter your Gemini API key before uploading.");
+      return;
+    }
+
     const tempId = Math.random().toString(36).substring(2, 15);
     const newFile: UploadedFile = {
       file,
@@ -119,6 +120,8 @@ export default function UploadPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("api_key", apiKey.trim());
+      formData.append("model_name", selectedModel);
 
       const uploadResponse = await fetch("http://127.0.0.1:8000/upload", {
         method: "POST",
@@ -141,7 +144,7 @@ export default function UploadPage() {
 
       toast.success(`${file.name} uploaded successfully!`);
       // Start the analysis pipeline immediately after upload success
-      startAnalysis(fileId);
+      startAnalysis(fileId, apiKey.trim());
     } catch (error) {
       let errorMessage = "An unknown error occurred during upload.";
       if (error instanceof Error) {
@@ -206,7 +209,7 @@ export default function UploadPage() {
       const a = document.createElement("a");
       a.href = url;
       // Force download with a clear file name
-      a.download = `${fileName.replace(".pdf", "")}_Analysis_Report.pdf`; 
+      a.download = `${fileName.replace(".pdf", "")}_Analysis_Report.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -220,7 +223,7 @@ export default function UploadPage() {
       toast.error(errorMessage);
     }
   };
-  
+
   // Status icons and text
   const getStatusIcon = (status: UploadedFile["status"]) => {
     switch (status) {
@@ -285,6 +288,150 @@ export default function UploadPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
+            {/* API Key Input Card */}
+            <Card className="mb-6 border-primary/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-primary" />
+                  <CardTitle className="text-base">Gemini API Key</CardTitle>
+                  {/* ℹ️ info icon with tooltip */}
+                  <div className="relative ml-auto">
+                    <button
+                      id="api-key-info-btn"
+                      type="button"
+                      onMouseEnter={() => setShowApiKeyTooltip(true)}
+                      onMouseLeave={() => setShowApiKeyTooltip(false)}
+                      className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <Info className="w-3 h-3" />
+                    </button>
+                    <AnimatePresence>
+                      {showApiKeyTooltip && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-0 top-7 z-50 w-72 rounded-xl border bg-popover p-3 shadow-xl text-sm text-popover-foreground"
+                        >
+                          <div className="flex items-start gap-2">
+                            <ShieldCheck className="w-4 h-4 mt-0.5 text-green-500 shrink-0" />
+                            <p>
+                              <span className="font-semibold">Your privacy is protected.</span>{" "}
+                              We <span className="font-semibold text-green-600 dark:text-green-400">do not store</span> your contracts or your API key. Everything is processed in memory and discarded after analysis.
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+                <CardDescription className="text-xs">
+                  Required to run the AI analysis. Get yours at{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline underline-offset-2"
+                  >
+                    Google AI Studio
+                  </a>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  <input
+                    id="gemini-api-key-input"
+                    type={showApiKeyText ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full rounded-lg border bg-background px-4 py-2.5 pr-24 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyText((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {showApiKeyText ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {/* Privacy badge */}
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+                  <span>We never store your contracts or API key.</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Model Selector Card */}
+            <Card className="mb-6">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-primary" />
+                  <CardTitle className="text-base">AI Model</CardTitle>
+                  <span className="ml-auto text-xs text-muted-foreground">Select analysis speed vs. quality</span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Option: gemini-2.5-flash-lite */}
+                  <button
+                    id="model-flash-lite-btn"
+                    type="button"
+                    onClick={() => setSelectedModel("gemini-2.5-flash-lite")}
+                    className={`relative flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-all duration-200 ${selectedModel === "gemini-2.5-flash-lite"
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-muted hover:border-muted-foreground/40"
+                      }`}
+                  >
+                    {selectedModel === "gemini-2.5-flash-lite" && (
+                      <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+                        <CheckCircle className="h-3 w-3 text-primary-foreground" />
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-semibold">Flash Lite</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-snug">
+                      Faster &amp; cheaper. Great for most contracts.
+                    </p>
+                    <span className="mt-1 inline-block rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                      gemini-2.5-flash-lite
+                    </span>
+                  </button>
+
+                  {/* Option: gemini-2.5-flash */}
+                  <button
+                    id="model-flash-btn"
+                    type="button"
+                    onClick={() => setSelectedModel("gemini-2.5-flash")}
+                    className={`relative flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-all duration-200 ${selectedModel === "gemini-2.5-flash"
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-muted hover:border-muted-foreground/40"
+                      }`}
+                  >
+                    {selectedModel === "gemini-2.5-flash" && (
+                      <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+                        <CheckCircle className="h-3 w-3 text-primary-foreground" />
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <Cpu className="w-4 h-4 text-violet-500" />
+                      <span className="text-sm font-semibold">Flash</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-snug">
+                      More powerful. Better for complex contracts.
+                    </p>
+                    <span className="mt-1 inline-block rounded-full bg-violet-100 dark:bg-violet-900/30 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400">
+                      gemini-2.5-flash
+                    </span>
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="mb-8">
               <CardHeader>
                 <CardTitle>Document Upload</CardTitle>
@@ -297,10 +444,9 @@ export default function UploadPage() {
                   {...getRootProps()}
                   className={`
                     relative p-12 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer
-                    ${
-                      isDragActive || dropzoneActive
-                        ? "border-primary bg-primary/10"
-                        : "border-muted-foreground/25 hover:border-primary/50"
+                    ${isDragActive || dropzoneActive
+                      ? "border-primary bg-primary/10"
+                      : "border-muted-foreground/25 hover:border-primary/50"
                     }
                   `}
                   whileHover={{ scale: 1.02 }}
@@ -378,14 +524,14 @@ export default function UploadPage() {
                               </span>
                               {(uploadedFile.status === "complete" ||
                                 uploadedFile.status === "error") && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeFile(uploadedFile.id)}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeFile(uploadedFile.id)}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                )}
                             </div>
                           </div>
                           <Progress
@@ -397,10 +543,10 @@ export default function UploadPage() {
                               {uploadedFile.errorMessage}
                             </p>
                           )}
-                          
+
                           {/* Final Action Buttons Block */}
                           {uploadedFile.status === "complete" && (
-                            <div className="text-right mt-4 space-x-3">
+                            <div className="flex justify-end mt-4 space-x-3">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -413,6 +559,7 @@ export default function UploadPage() {
                               </Button>
                               <Button
                                 size="sm"
+                                variant="outline"
                                 onClick={() =>
                                   handleDownloadReport(uploadedFile.id, uploadedFile.file.name)
                                 }
@@ -420,9 +567,19 @@ export default function UploadPage() {
                                 <Download className="w-4 h-4 mr-2" />
                                 Download Report
                               </Button>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                                onClick={() =>
+                                  window.location.href = `/results?fileId=${uploadedFile.id}`
+                                }
+                              >
+                                <TrendingUp className="w-4 h-4 mr-2" />
+                                View Analysis Dashboard
+                              </Button>
                             </div>
                           )}
-                          
+
                         </motion.div>
                       ))}
                     </CardContent>

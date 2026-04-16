@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 import os
@@ -9,6 +9,8 @@ import json
 from starlette.staticfiles import StaticFiles # <-- ADD THIS IMPORT
 
 from notebook_module import (
+    configure_gemini_api,
+    set_model_name,
     extract_text_from_pdf,
     process_text_to_clauses,
     run_strict_analysis,
@@ -48,9 +50,23 @@ app.mount("/data", StaticFiles(directory=BASE_DIR), name="data")
 # ----------------------------------------------------
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    api_key: str = Form(...),
+    model_name: str = Form(default="gemini-2.5-flash-lite"),
+):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    if not api_key or not api_key.strip():
+        raise HTTPException(status_code=400, detail="A Gemini API key is required.")
+
+    # Configure Gemini with the user-supplied key and chosen model (not stored anywhere)
+    try:
+        configure_gemini_api(api_key)
+        set_model_name(model_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     file_id = str(uuid.uuid4()) # Each upload gets a UNIQUE ID
     file_dir = os.path.join(BASE_DIR, file_id) # A UNIQUE DIRECTORY is created for this ID
@@ -74,7 +90,18 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error during PDF text extraction with Gemini: {e}")
 
 @app.post("/segment/{file_id}")
-async def segment_clauses(file_id: str): # `file_id` ensures specific user's data is accessed
+async def segment_clauses(
+    file_id: str,
+    x_api_key: str = Header(..., alias="X-Api-Key"),
+    x_model_name: str = Header(default="gemini-2.5-flash-lite", alias="X-Model-Name"),
+):
+    # Re-configure Gemini with the key and model passed in request headers
+    try:
+        configure_gemini_api(x_api_key)
+        set_model_name(x_model_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     file_dir = os.path.join(BASE_DIR, file_id) # Reconstruct unique directory path
     full_text_path = os.path.join(file_dir, "full_text.txt")
     clauses_output_path = os.path.join(file_dir, CLAUSES_JSON_OUTPUT) # `clauses.json` written to unique directory
@@ -93,7 +120,18 @@ async def segment_clauses(file_id: str): # `file_id` ensures specific user's dat
     return {"clauses_extracted": len(clauses), "message": "Segmentation completed."}
 
 @app.post("/analyze/ambiguity/{file_id}")
-async def ambiguity_analysis(file_id: str): # `file_id` ensures specific user's data is accessed
+async def ambiguity_analysis(
+    file_id: str,
+    x_api_key: str = Header(..., alias="X-Api-Key"),
+    x_model_name: str = Header(default="gemini-2.5-flash-lite", alias="X-Model-Name"),
+):
+    # Re-configure Gemini with the key and model passed in request headers
+    try:
+        configure_gemini_api(x_api_key)
+        set_model_name(x_model_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     file_dir = os.path.join(BASE_DIR, file_id) # Reconstruct unique directory path
     input_path = os.path.join(file_dir, CLAUSES_JSON_OUTPUT)
     output_path = os.path.join(file_dir, AMBIGUITY_JSON_OUTPUT) # `ambiguity_analysis_strict.json` written to unique directory
@@ -112,7 +150,18 @@ async def ambiguity_analysis(file_id: str): # `file_id` ensures specific user's 
     return {"message": "Ambiguity analysis complete."}
 
 @app.post("/analyze/deep/{file_id}")
-async def deep_analysis(file_id: str):
+async def deep_analysis(
+    file_id: str,
+    x_api_key: str = Header(..., alias="X-Api-Key"),
+    x_model_name: str = Header(default="gemini-2.5-flash-lite", alias="X-Model-Name"),
+):
+    # Re-configure Gemini with the key and model passed in request headers
+    try:
+        configure_gemini_api(x_api_key)
+        set_model_name(x_model_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     file_dir = os.path.join(BASE_DIR, file_id) # This defines the user-specific directory
 
     # Load RAG components BEFORE changing directory, as their paths are fixed absolute paths

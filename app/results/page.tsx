@@ -1,5 +1,6 @@
 "use client";
-
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Navigation } from '@/components/navigation';
-import { 
-  AlertTriangle, 
-  CheckCircle, 
-  Info, 
-  TrendingUp, 
+import { KnowledgeGraph } from '@/components/knowledge-graph';
+import {
+  AlertTriangle,
+  CheckCircle,
+  Info,
+  TrendingUp,
   FileText,
   Download,
   Share,
@@ -21,60 +23,66 @@ import {
 const riskLevels = {
   high: { color: 'bg-red-500', textColor: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-900/20' },
   medium: { color: 'bg-yellow-500', textColor: 'text-yellow-500', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' },
-  low: { color: 'bg-green-500', textColor: 'text-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' }
+  low: { color: 'bg-green-500', textColor: 'text-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+  'not assessed': { color: 'bg-gray-500', textColor: 'text-gray-500', bgColor: 'bg-gray-50 dark:bg-gray-900/20' }
 };
 
-const analysisResults = [
-  {
-    id: 1,
-    title: "Payment Terms Risk",
-    description: "Unclear payment milestones and penalty clauses detected",
-    risk: "high" as const,
-    category: "Financial",
-    confidence: 94,
-    details: "The contract lacks specific payment milestone definitions and contains ambiguous penalty clauses that could lead to disputes."
-  },
-  {
-    id: 2,
-    title: "Timeline Compliance",
-    description: "Reasonable completion timeline with standard buffer periods",
-    risk: "low" as const,
-    category: "Scheduling",
-    confidence: 87,
-    details: "Timeline provisions appear standard for this type of project with appropriate contingencies built in."
-  },
-  {
-    id: 3,
-    title: "Material Specification",
-    description: "Some material specifications lack quality standards",
-    risk: "medium" as const,
-    category: "Quality",
-    confidence: 91,
-    details: "While most materials are specified, some lack detailed quality standards which could impact project outcomes."
-  },
-  {
-    id: 4,
-    title: "Change Order Process",
-    description: "Well-defined change order procedures with cost controls",
-    risk: "low" as const,
-    category: "Process",
-    confidence: 89,
-    details: "Change order procedures are clearly defined with appropriate approval processes and cost control mechanisms."
+function ResultsContent() {
+  const searchParams = useSearchParams();
+  const fileId = searchParams.get('fileId');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (fileId) {
+      fetch(`http://127.0.0.1:8000/data/${fileId}/final_comprehensive_analysis.json`)
+        .then(res => res.json())
+        .then(json => {
+          setData(json);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Error fetching analysis:", err);
+          setLoading(false);
+        });
+    }
+  }, [fileId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
   }
-];
 
-const keyMetrics = [
-  { label: "Overall Risk Score", value: 68, color: "text-yellow-500" },
-  { label: "Contract Completeness", value: 82, color: "text-green-500" },
-  { label: "Legal Compliance", value: 95, color: "text-green-500" },
-  { label: "Financial Clarity", value: 45, color: "text-red-500" }
-];
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center flex-col space-y-4">
+        <h2 className="text-2xl font-bold">No analysis found</h2>
+        <p className="text-muted-foreground">Please upload a document first.</p>
+        <Button onClick={() => window.location.href = '/upload'}>Go to Upload</Button>
+      </div>
+    );
+  }
 
-export default function ResultsPage() {
+  const riskCounts = {
+    high: data.clause_analysis.filter((c: any) => c.overall_risk_level === 'High').length,
+    medium: data.clause_analysis.filter((c: any) => c.overall_risk_level === 'Medium').length,
+    low: data.clause_analysis.filter((c: any) => c.overall_risk_level === 'Low').length,
+  };
+
+  const dynamicKeyMetrics = [
+    { label: "High Risk Clauses", value: riskCounts.high, color: "text-red-500", suffix: "" },
+    { label: "Medium Risk Clauses", value: riskCounts.medium, color: "text-yellow-500", suffix: "" },
+    { label: "Low Risk Clauses", value: riskCounts.low, color: "text-green-500", suffix: "" },
+    { label: "Total Clauses", value: data.clause_analysis.length, color: "text-blue-500", suffix: "" }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-blue-900 dark:to-purple-900">
       <Navigation />
-      
+
       <div className="pt-32 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
@@ -93,7 +101,7 @@ export default function ResultsPage() {
                 </p>
               </div>
               <div className="flex items-center space-x-2 mt-4 md:mt-0">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => window.open(`http://127.0.0.1:8000/report/${fileId}`, '_blank')}>
                   <Download className="w-4 h-4 mr-2" />
                   Export PDF
                 </Button>
@@ -105,7 +113,7 @@ export default function ResultsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              {keyMetrics.map((metric, index) => (
+              {dynamicKeyMetrics.map((metric, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20 }}
@@ -119,10 +127,10 @@ export default function ResultsPage() {
                           {metric.label}
                         </span>
                         <span className={`text-2xl font-bold ${metric.color}`}>
-                          {metric.value}%
+                          {metric.value}{metric.suffix}
                         </span>
                       </div>
-                      <Progress value={metric.value} className="h-2" />
+                      <Progress value={(metric.value / data.clause_analysis.length) * 100} className="h-2" />
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -134,6 +142,7 @@ export default function ResultsPage() {
             <TabsList className="glass dark:glass-dark border-white/20">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="risks">Risk Analysis</TabsTrigger>
+              <TabsTrigger value="graph">Knowledge Graph</TabsTrigger>
               <TabsTrigger value="clauses">Key Clauses</TabsTrigger>
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
             </TabsList>
@@ -149,34 +158,31 @@ export default function ResultsPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {analysisResults.map((result, index) => (
+                      {data.clause_analysis.filter((c: any) => c.overall_risk_level !== 'Low').map((clause: any, index: number) => (
                         <motion.div
-                          key={result.id}
+                          key={clause.clause_number}
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ duration: 0.5, delay: index * 0.1 }}
-                          className={`neomorphic dark:neomorphic-dark rounded-xl p-4 ${riskLevels[result.risk].bgColor}`}
+                          className={`neomorphic dark:neomorphic-dark rounded-xl p-4 ${(riskLevels[clause.overall_risk_level.toLowerCase() as keyof typeof riskLevels] || riskLevels['not assessed']).bgColor}`}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center space-x-3">
-                              <div className={`w-3 h-3 rounded-full ${riskLevels[result.risk].color}`} />
+                              <div className={`w-3 h-3 rounded-full ${(riskLevels[clause.overall_risk_level.toLowerCase() as keyof typeof riskLevels] || riskLevels['not assessed']).color}`} />
                               <div>
-                                <h3 className="font-semibold">{result.title}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  {result.description}
+                                <h3 className="font-semibold">Clause {clause.clause_number}</h3>
+                                <p className="text-sm text-muted-foreground line-clamp-1">
+                                  {clause.content.substring(0, 100)}...
                                 </p>
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Badge variant="secondary" className="text-xs">
-                                {result.category}
+                                {clause.overall_risk_level}
                               </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {result.confidence}% confidence
-                              </span>
                             </div>
                           </div>
-                          <p className="text-sm">{result.details}</p>
+                          <p className="text-sm">{clause.final_analysis_summary}</p>
                         </motion.div>
                       ))}
                     </CardContent>
@@ -191,43 +197,40 @@ export default function ResultsPage() {
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Total Clauses</span>
-                        <span className="font-semibold">47</span>
+                        <span className="font-semibold">{data.clause_analysis.length}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">High Risk Items</span>
-                        <span className="font-semibold text-red-500">3</span>
+                        <span className="font-semibold text-red-500">{riskCounts.high}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Medium Risk Items</span>
-                        <span className="font-semibold text-yellow-500">8</span>
+                        <span className="font-semibold text-yellow-500">{riskCounts.medium}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm">Low Risk Items</span>
-                        <span className="font-semibold text-green-500">36</span>
+                        <span className="font-semibold text-green-500">{riskCounts.low}</span>
                       </div>
                     </CardContent>
                   </Card>
 
                   <Card className="glass dark:glass-dark border-white/20">
                     <CardHeader>
-                      <CardTitle>Document Info</CardTitle>
+                      <CardTitle>Systemic Risks</CardTitle>
+                      <CardDescription>Cross-clause conflicts detected</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="w-5 h-5 text-blue-500" />
-                        <div>
-                          <p className="font-medium">redevelopment-contract.pdf</p>
-                          <p className="text-sm text-muted-foreground">2.4 MB • 24 pages</p>
+                      {data.systemic_risks.map((risk: any, index: number) => (
+                        <div key={index} className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/30">
+                          <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-1 uppercase">{risk.risk_type}</p>
+                          <p className="text-sm mb-2">{risk.description}</p>
+                          <div className="flex gap-1">
+                            {risk.involved_clauses.map((c: string) => (
+                              <Badge key={c} variant="outline" className="text-[10px]">Clause {c}</Badge>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Analyzed</span>
-                        <span>2 minutes ago</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Processing Time</span>
-                        <span>1.3 seconds</span>
-                      </div>
+                      ))}
                     </CardContent>
                   </Card>
                 </div>
@@ -244,9 +247,9 @@ export default function ResultsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-6">
-                    {analysisResults.map((result, index) => (
+                    {data.clause_analysis.filter((c: any) => c.overall_risk_level !== 'Low').map((clause: any, index: number) => (
                       <motion.div
-                        key={result.id}
+                        key={clause.clause_number}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -254,31 +257,34 @@ export default function ResultsPage() {
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-3">
-                            <div className={`w-4 h-4 rounded-full ${riskLevels[result.risk].color}`} />
+                            <div className={`w-4 h-4 rounded-full ${(riskLevels[clause.overall_risk_level.toLowerCase() as keyof typeof riskLevels] || riskLevels['not assessed']).color}`} />
                             <div>
-                              <h3 className="text-lg font-semibold">{result.title}</h3>
+                              <h3 className="text-lg font-semibold">Clause {clause.clause_number}</h3>
                               <Badge variant="outline" className="mt-1">
-                                {result.risk.toUpperCase()} RISK
+                                {clause.overall_risk_level.toUpperCase()} RISK
                               </Badge>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm text-muted-foreground">Confidence</p>
-                            <p className="text-lg font-semibold">{result.confidence}%</p>
+                        </div>
+                        <p className="text-muted-foreground mb-4 italic">"{clause.content.substring(0, 300)}..."</p>
+                        <div className="mb-4">
+                          <h4 className="font-bold text-sm mb-2">Loopholes & Risks:</h4>
+                          <div className="space-y-2">
+                            {clause.short_loopholes.map((lh: any, lIndex: number) => (
+                              <div key={lIndex} className="p-3 rounded bg-white/50 dark:bg-black/20 border border-white/20">
+                                <p className="text-sm font-medium mb-1">{lh.short_desc}</p>
+                                <div className="flex gap-2">
+                                  <Badge variant="secondary" className="text-[10px]">{lh.loophole_type}</Badge>
+                                  <Badge variant="outline" className="text-[10px]">Impact on: {lh.impact_on}</Badge>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <p className="text-muted-foreground mb-4">{result.description}</p>
-                        <p className="text-sm">{result.details}</p>
-                        <div className="mt-4 flex items-center space-x-4">
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-4 h-4 mr-2" />
-                            View in Contract
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Info className="w-4 h-4 mr-2" />
-                            Learn More
-                          </Button>
-                        </div>
+                        <p className="text-sm bg-primary/5 p-4 rounded-lg border border-primary/10">
+                          <span className="font-bold">Synthesis: </span>
+                          {clause.final_analysis_summary}
+                        </p>
                       </motion.div>
                     ))}
                   </div>
@@ -286,18 +292,45 @@ export default function ResultsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="clauses">
+            <TabsContent value="graph">
               <Card className="glass dark:glass-dark border-white/20">
                 <CardHeader>
-                  <CardTitle>Key Clause Analysis</CardTitle>
+                  <CardTitle>Knowledge Graph visualization</CardTitle>
                   <CardDescription>
-                    Important clauses that require attention
+                    Visual relationships between clauses, entities, and systemic risks
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    Detailed clause analysis will be displayed here with highlights and annotations.
-                  </p>
+                  <KnowledgeGraph
+                    data={data.knowledge_graph}
+                    clauseAnalysis={data.clause_analysis}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="clauses">
+              <Card className="glass dark:glass-dark border-white/20">
+                <CardHeader>
+                  <CardTitle>Full Clause List</CardTitle>
+                  <CardDescription>
+                    Overview of all extracted clauses
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {data.clause_analysis.map((clause: any) => (
+                      <div key={clause.clause_number} className="p-4 rounded-lg border border-white/10 glass dark:glass-dark">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="font-bold">Clause {clause.clause_number}</h4>
+                          <Badge variant={clause.overall_risk_level === 'High' ? 'destructive' : 'secondary'}>
+                            {clause.overall_risk_level} Risk
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{clause.content}</p>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -305,15 +338,26 @@ export default function ResultsPage() {
             <TabsContent value="recommendations">
               <Card className="glass dark:glass-dark border-white/20">
                 <CardHeader>
-                  <CardTitle>AI Recommendations</CardTitle>
+                  <CardTitle>AI Strategic Recommendations</CardTitle>
                   <CardDescription>
-                    Actionable insights to improve your contract
+                    Actionable insights to protect the Society's interests
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    Personalized recommendations based on the analysis will be shown here.
-                  </p>
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30">
+                      <h4 className="font-bold text-green-700 dark:text-green-400 mb-2">1. Define "Approved Plans" & Quality Standards</h4>
+                      <p className="text-sm">Explicitly define what constitutes an 'Approved Plan' (specify the authority and date) and include a detailed specification annexure for materials and finishes to prevent cost-cutting.</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30">
+                      <h4 className="font-bold text-blue-700 dark:text-blue-400 mb-2">2. Link Timeline to specific Milestones</h4>
+                      <p className="text-sm">Replace vague phrases like "all approvals" with a hard deadline or a list of specific mandatory approvals (e.g., IOD, CC). Include liquidated damages for delays.</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/30">
+                      <h4 className="font-bold text-purple-700 dark:text-purple-400 mb-2">3. Restrict Mortgage Rights</h4>
+                      <p className="text-sm">Limit the Developer's right to mortgage the property only to the free-sale component. Require a No Objection Certificate (NOC) from the RWA before any mortgage is registered.</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -321,5 +365,13 @@ export default function ResultsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div>Loading component...</div>}>
+      <ResultsContent />
+    </Suspense>
   );
 }

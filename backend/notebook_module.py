@@ -30,15 +30,32 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus.flowables import KeepTogether
 
-# Configure the API key for Google Generative AI
-# IMPORTANT: Replace with your actual API key.
-API_KEY = "/" # <-- YOUR API KEY HERE
-genai.configure(api_key=API_KEY)
+# API key is NOT stored here. It is provided by the user at runtime via the frontend.
+# Call configure_gemini_api(api_key) before using any Gemini API function.
+API_KEY = None
+
+def configure_gemini_api(api_key: str):
+    """Configure the Gemini API with the user-provided key. Called before each pipeline run."""
+    global API_KEY
+    if not api_key or not api_key.strip():
+        raise ValueError("A valid Gemini API key must be provided.")
+    API_KEY = api_key.strip()
+    genai.configure(api_key=API_KEY)
 
 # --- Model & API Configuration ---
-MODEL_NAME = "gemini-2.5-flash"
+# Default model — overridden at runtime via set_model_name() from the frontend selection.
+ALLOWED_MODELS = {"gemini-2.5-flash", "gemini-2.5-flash-lite"}
+MODEL_NAME = "gemini-2.5-flash-lite"
 MAX_API_RETRIES = 5
-INITIAL_RETRY_DELAY = 5  # seconds
+INITIAL_RETRY_DELAY = 5
+
+def set_model_name(model: str):
+    """Set the active Gemini model. Must be one of the ALLOWED_MODELS."""
+    global MODEL_NAME
+    if model not in ALLOWED_MODELS:
+        raise ValueError(f"Model '{model}' is not allowed. Choose from: {ALLOWED_MODELS}")
+    MODEL_NAME = model
+    logging.info(f"Active Gemini model set to: {MODEL_NAME}")
 
 # --- File Paths ---
 PDF_FILE_PATH = "contract.pdf"
@@ -530,6 +547,122 @@ def call_gemini_api(prompt: str, limiter: RateLimiter, use_json_mode: bool = Tru
             logging.error(f"  - Unhandled API error: {type(e).__name__}: {e}. Stopping retries."); return "[]"
     return "[]"
 
+# Colour palette for detected parties (cycles if more than 6 parties found)
+PARTY_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4"]
+
+def extract_contract_parties(all_clauses: List[Dict[str, Any]], limiter: RateLimiter) -> List[Dict]:
+    """
+    Uses Gemini to dynamically detect the main contracting parties from the clause text.
+    Returns a list of dicts: [{"name": "...", "obligation_keywords": [...]}]
+    Falls back to generic Party A / Party B on failure.
+    """
+    # Sample the first ~30 clauses to keep the prompt manageable
+    sample_text = "\n\n".join([
+        f"--- CLAUSE {c['clause_number']} ---\n{c['content']}"
+        for c in all_clauses[:30]
+    ])
+
+    prompt = f"""
+You are a legal document analyst. Read the following contract clause samples and identify the main contracting parties (typically 2–4 distinct entities such as Employer, Employee, Developer, Society, Vendor, Client, Lessor, Lessee, etc.).
+
+For each party you detect, provide:
+1. A short, clean display name (e.g. "Developer", "Society", "Employer", "Employee").
+2. A list of exact lowercase obligation-trigger phrases that appear in the text, showing that party has a duty (e.g. "developer shall", "employer must", "society agrees").
+
+Return ONLY a valid JSON array. No extra text, no markdown. Each element must follow this schema exactly:
+[{{"name": "PartyName", "obligation_keywords": ["party shall", "party will", "party must", "party agrees"]}}]
+
+--- CONTRACT CLAUSES SAMPLE ---
+{sample_text}
+---
+"""
+    logging.info("  - Detecting contracting parties from clause text...")
+    response = call_gemini_api(prompt, limiter, use_json_mode=True)
+    try:
+        parties = json.loads(response)
+        if isinstance(parties, list) and len(parties) > 0:
+            logging.info(f"  - Detected parties: {[p.get('name') for p in parties]}")
+            return parties
+    except (json.JSONDecodeError, TypeError):
+        logging.error("  - Failed to parse party extraction response. Using fallback defaults.")
+
+    # Fallback — generic two-party contract
+    return [
+        {"name": "Party A", "obligation_keywords": ["party a shall", "party a will", "party a must", "party a agrees"]},
+        {"name": "Party B", "obligation_keywords": ["party b shall", "party b will", "party b must", "party b agrees"]},
+    ]
+
+def generate_knowledge_graph_data(
+    systemic_risks: List[Dict],
+    clause_analysis: List[Dict],
+    parties: List[Dict],
+) -> Dict:
+    """Transforms analysis results into a Knowledge Graph format for visualization.
+    
+    Uses the dynamically detected `parties` list so any contract type is supported.
+    """
+    # Build entity nodes from the detected parties
+    nodes = []
+    for i, party in enumerate(parties):
+        nodes.append({
+            "id": party["name"],
+            "label": party["name"],
+            "group": "Entity",
+            "color": PARTY_COLORS[i % len(PARTY_COLORS)],
+            "val": 15,
+        })
+
+    links = []
+
+    risk_config = {
+        "High":         {"color": "#ff4d4d", "val": 12},
+        "Medium":       {"color": "#fbbf24", "val": 10},
+        "Low":          {"color": "#34d399", "val": 8},
+        "Not Assessed": {"color": "#94a3b8", "val": 5},
+    }
+
+    for idx, clause in enumerate(clause_analysis):
+        c_num = str(clause.get("clause_number", ""))
+        if not c_num:
+            c_num = f"unknown_{idx}"
+        risk_level = clause.get("overall_risk_level", "Not Assessed")
+        config = risk_config.get(risk_level, risk_config["Not Assessed"])
+
+        nodes.append({
+            "id": c_num,
+            "label": f"Clause {c_num}",
+            "group": "Clause",
+            "val": config["val"],
+            "color": config["color"],
+        })
+
+        # Draw obligation links for each detected party dynamically
+        content = clause.get("content", "").lower()
+        for party in parties:
+            keywords = party.get("obligation_keywords", [])
+            if any(kw.lower() in content for kw in keywords):
+                links.append({
+                    "source": party["name"],
+                    "target": c_num,
+                    "label": "Obligation",
+                    "type": "Obligation",
+                })
+
+    # Draw conflict links between clauses that share a systemic risk
+    for risk in systemic_risks:
+        involved = [str(c) for c in risk.get("involved_clauses", [])]
+        risk_type = risk.get("risk_type", "Conflict")
+        for i in range(len(involved)):
+            for j in range(i + 1, len(involved)):
+                links.append({
+                    "source": involved[i],
+                    "target": involved[j],
+                    "label": risk_type,
+                    "type": risk_type,
+                })
+
+    return {"nodes": nodes, "links": links}
+
 def load_and_prepare_data() -> Dict[str, Dict[str, Any]]:
     """Loads and merges data from previous phases, preparing all fields for the pipeline."""
     logging.info("Loading and preparing data for deep analysis...")
@@ -640,9 +773,18 @@ def run_analysis_pipeline(analysis_data: Dict[str, Dict[str, Any]]):
         if 'loophole_fingerprints' in data:
             del data['loophole_fingerprints']
 
+    logging.info("\n--- Starting Phase 3.4: Dynamic Party Detection for Knowledge Graph ---")
+    detected_parties = extract_contract_parties(all_clauses, limiter)
+    logging.info(f"  - Using {len(detected_parties)} detected parties for graph: {[p['name'] for p in detected_parties]}")
+
     final_output = {
         "systemic_risks": initial_systemic_risks,
-        "clause_analysis": list(analysis_data.values())
+        "clause_analysis": list(analysis_data.values()),
+        "knowledge_graph": generate_knowledge_graph_data(
+            initial_systemic_risks,
+            list(analysis_data.values()),
+            detected_parties,
+        )
     }
     return final_output
 
