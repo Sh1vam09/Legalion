@@ -16,6 +16,11 @@ import { Navigation } from "@/components/navigation";
 import { Upload, FileText, CheckCircle, AlertCircle, X, Download, Eye, TrendingUp, Info, KeyRound, ShieldCheck, Zap, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
+const SAMPLE_DOCUMENT = {
+  name: "Redevelopment Agreement.pdf",
+  url: "/sample-documents/redevelopment-agreement.pdf",
+};
+
 interface UploadedFile {
   file: File;
   id: string; // This will be the file_id from the backend
@@ -37,9 +42,10 @@ export default function UploadPage() {
   const [showApiKeyTooltip, setShowApiKeyTooltip] = useState(false);
   const [showApiKeyText, setShowApiKeyText] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-lite");
+  const [isPreparingSample, setIsPreparingSample] = useState(false);
 
   // Function to run the analysis pipeline after a successful upload
-  const startAnalysis = async (fileId: string, key: string) => {
+  const startAnalysis = useCallback(async (fileId: string, key: string) => {
     try {
       // Step 2: Segment Clauses (25%)
       setUploadedFiles((prev) =>
@@ -99,10 +105,10 @@ export default function UploadPage() {
       );
       toast.error(errorMessage);
     }
-  };
+  }, [selectedModel]);
 
   // Function to handle the initial file upload to the FastAPI backend
-  const processFile = async (file: File) => {
+  const processFile = useCallback(async (file: File) => {
     if (!apiKey.trim()) {
       toast.error("Please enter your Gemini API key before uploading.");
       return;
@@ -157,7 +163,38 @@ export default function UploadPage() {
       );
       toast.error(errorMessage);
     }
-  };
+  }, [apiKey, selectedModel, startAnalysis]);
+
+  const handleSampleUpload = useCallback(async () => {
+    if (!apiKey.trim()) {
+      toast.error("Please enter your Gemini API key before uploading.");
+      return;
+    }
+
+    setIsPreparingSample(true);
+
+    try {
+      const response = await fetch(SAMPLE_DOCUMENT.url);
+      if (!response.ok) {
+        throw new Error("Sample document could not be loaded.");
+      }
+
+      const blob = await response.blob();
+      const sampleFile = new File([blob], SAMPLE_DOCUMENT.name, {
+        type: "application/pdf",
+      });
+
+      await processFile(sampleFile);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Could not prepare the sample document.";
+      toast.error(errorMessage);
+    } finally {
+      setIsPreparingSample(false);
+    }
+  }, [apiKey, processFile]);
 
   // Dropzone handling
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -169,7 +206,7 @@ export default function UploadPage() {
       }
     });
     setIsDragActive(false);
-  }, []);
+  }, [processFile]);
 
   const {
     getRootProps,
@@ -439,7 +476,43 @@ export default function UploadPage() {
                   Drag and drop your PDF files or click to browse
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                <div className="rounded-2xl border border-primary/15 bg-primary/5 p-5">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-primary">
+                        Sample document ready on this page
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        <span className="font-medium">{SAMPLE_DOCUMENT.name}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Use the redevelopment agreement below to upload it
+                        directly for analysis without browsing your computer.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => window.open(SAMPLE_DOCUMENT.url, "_blank")}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        Preview PDF
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleSampleUpload}
+                        disabled={isPreparingSample}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {isPreparingSample ? "Preparing..." : "Upload for Analysis"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
                 <motion.div
                   {...getRootProps()}
                   className={`
