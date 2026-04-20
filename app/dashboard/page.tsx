@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react"; // Added useEffect
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Card,
@@ -20,7 +20,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Navigation } from "@/components/navigation";
-import { Skeleton } from "@/components/ui/skeleton"; // Added Skeleton
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  readSessionUploads,
+  writeSessionUploads,
+  type SessionUpload,
+} from "@/lib/session-uploads";
 import { toast } from "sonner";
 import {
   Search,
@@ -33,68 +38,55 @@ import {
   Download,
   Eye,
   Trash2,
-  AlertCircle, // Added for error
+  AlertCircle,
 } from "lucide-react";
-
-// Define the shape of our upload data
-interface Upload {
-  id: number; // Or string, if from a DB
-  fileId: string;
-  name: string;
-  uploadDate: string;
-  status: string;
-  size: string;
-}
-
-// Hard-coded "initialUploads" array has been REMOVED
 
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTab, setSelectedTab] = useState("overview");
-
-  // State for uploads, loading, and errors
-  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [uploads, setUploads] = useState<SessionUpload[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Fetch data from backend when component mounts
   useEffect(() => {
-    const fetchUploads = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // ASSUMPTION: You created this endpoint in your backend
-        const response = await fetch("http://127.0.0.1:8000/uploads/list");
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch data from backend");
-        }
-
-        const data = await response.json();
-
-        // Assuming backend returns { "uploads": [...] }
-        setUploads(data.uploads || []);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "An unknown error occurred";
-        setError(errorMessage);
-        toast.error("Failed to fetch uploads", { description: errorMessage });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUploads();
-  }, []); // Empty array means this runs once on mount
+    setUploads(readSessionUploads());
+    setIsLoading(false);
+  }, []);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "completed":
+      case "complete":
         return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "uploading":
+      case "segmenting":
       case "analyzing":
+      case "analyzing_ambiguity":
+      case "deep_analysis":
         return <Clock className="w-4 h-4 text-yellow-500" />;
+      case "error":
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
       default:
         return <FileText className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "uploading":
+        return "Uploading";
+      case "segmenting":
+        return "Segmenting Clauses";
+      case "analyzing":
+        return "Analyzing";
+      case "analyzing_ambiguity":
+        return "Analyzing Ambiguity";
+      case "deep_analysis":
+        return "Deep Analysis";
+      case "complete":
+        return "Analysis Complete";
+      case "error":
+        return "Error";
+      default:
+        return status;
     }
   };
 
@@ -126,21 +118,30 @@ export default function Dashboard() {
     window.open(`http://127.0.0.1:8000/data/${fileId}/uploaded.pdf`, "_blank");
   };
 
-  const handleDelete = (id: number) => {
-    // Here you would also call your backend API to delete the file
-    // e.g., fetch(`http://127.0.0.1:8000/delete/${id}`, { method: 'DELETE' })
-
-    // For now, we'll just remove it from the UI
-    setUploads((prevUploads) =>
-      prevUploads.filter((upload) => upload.id !== id),
-    );
-    toast.success("File removed from list.");
+  const handleDelete = (id: string) => {
+    setUploads((prevUploads) => {
+      const nextUploads = prevUploads.filter((upload) => upload.id !== id);
+      writeSessionUploads(nextUploads);
+      return nextUploads;
+    });
+    toast.success("File removed from this session.");
   };
 
-  // Filtered list based on search term
-  const filteredUploads = uploads.filter((u) =>
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredUploads = uploads.filter((upload) =>
+    upload.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+  const completedUploads = uploads.filter((upload) => upload.status === "complete");
+
+  const formatUploadDate = (uploadDate: string) => {
+    const date = new Date(uploadDate);
+    if (Number.isNaN(date.getTime())) {
+      return uploadDate;
+    }
+
+    return date.toLocaleString();
+  };
+
+  const formatFileSize = (size: number) => `${(size / 1024 / 1024).toFixed(2)} MB`;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -163,13 +164,12 @@ export default function Dashboard() {
                   Manage and track your contract analyses
                 </p>
               </div>
-              <Button>
+              <Button onClick={() => (window.location.href = "/upload")}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Analysis
               </Button>
             </div>
 
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -183,7 +183,6 @@ export default function Dashboard() {
                         <p className="text-sm font-medium text-muted-foreground">
                           Total Contracts
                         </p>
-                        {/* This is now DYNAMIC */}
                         <p className="text-3xl font-bold">{uploads.length}</p>
                       </div>
                       <FileText className="w-8 h-8 text-primary" />
@@ -202,10 +201,11 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">
-                          This Month
+                          Completed This Session
                         </p>
-                        <p className="text-3xl font-bold text-green-500">12</p>
-                        {/* Note: This is still hard-coded, would also need backend logic */}
+                        <p className="text-3xl font-bold text-green-500">
+                          {completedUploads.length}
+                        </p>
                       </div>
                       <Calendar className="w-8 h-8 text-green-500" />
                     </div>
@@ -216,7 +216,6 @@ export default function Dashboard() {
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Sidebar */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -244,27 +243,16 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-2 block">
-                      Status
+                      Scope
                     </label>
-                    <div className="space-y-2">
-                      {["All", "Completed", "Analyzing", "Failed"].map(
-                        (status) => (
-                          <label
-                            key={status}
-                            className="flex items-center space-x-2"
-                          >
-                            <input type="checkbox" className="rounded" />
-                            <span className="text-sm">{status}</span>
-                          </label>
-                        ),
-                      )}
+                    <div className="rounded-xl border p-3 text-sm text-muted-foreground">
+                      Showing uploads saved in this browser session only.
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
 
-            {/* Main Content */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -283,14 +271,12 @@ export default function Dashboard() {
                     <CardHeader>
                       <CardTitle>Recent Contract Analyses</CardTitle>
                       <CardDescription>
-                        Your latest uploaded and analyzed contracts
+                        Files from your current browser session
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {/* --- DYNAMIC CONTENT --- */}
                         {isLoading ? (
-                          // Loading State
                           Array.from({ length: 3 }).map((_, i) => (
                             <div
                               key={i}
@@ -309,24 +295,13 @@ export default function Dashboard() {
                               </div>
                             </div>
                           ))
-                        ) : error ? (
-                          // Error State
-                          <div className="flex flex-col items-center justify-center text-center p-8 border rounded-xl">
-                            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-                            <p className="text-lg font-semibold text-red-500">
-                              Failed to load uploads
-                            </p>
-                            <p className="text-muted-foreground">{error}</p>
-                          </div>
                         ) : filteredUploads.length === 0 ? (
-                          // Empty State
                           <div className="text-center p-8 border rounded-xl">
                             <p className="text-muted-foreground">
-                              No contracts found.
+                              No contracts found in this session.
                             </p>
                           </div>
                         ) : (
-                          // Success State
                           filteredUploads.map((upload, index) => (
                             <motion.div
                               key={upload.id}
@@ -342,17 +317,17 @@ export default function Dashboard() {
                                     <p className="font-medium">{upload.name}</p>
                                     <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                                       <Calendar className="w-3 h-3" />
-                                      <span>{upload.uploadDate}</span>
-                                      <span>•</span>
-                                      <span>{upload.size}</span>
+                                      <span>{formatUploadDate(upload.uploadDate)}</span>
+                                      <span>&bull;</span>
+                                      <span>{formatFileSize(upload.size)}</span>
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-4">
                                   <div className="flex items-center space-x-2">
                                     {getStatusIcon(upload.status)}
-                                    <span className="text-sm capitalize">
-                                      {upload.status}
+                                    <span className="text-sm">
+                                      {getStatusText(upload.status)}
                                     </span>
                                   </div>
 
@@ -364,21 +339,17 @@ export default function Dashboard() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem
-                                        onClick={() =>
-                                          handleViewPdf(upload.fileId)
-                                        }
+                                        onClick={() => handleViewPdf(upload.id)}
+                                        disabled={upload.status !== "complete"}
                                       >
                                         <Eye className="mr-2 w-4 h-4" />
                                         View PDF
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() =>
-                                          handleDownloadReport(
-                                            upload.fileId,
-                                            upload.name,
-                                          )
+                                          handleDownloadReport(upload.id, upload.name)
                                         }
-                                        disabled={upload.status !== "completed"}
+                                        disabled={upload.status !== "complete"}
                                       >
                                         <Download className="mr-2 w-4 h-4" />
                                         Download Report
@@ -398,7 +369,6 @@ export default function Dashboard() {
                             </motion.div>
                           ))
                         )}
-                        {/* --- END DYNAMIC CONTENT --- */}
                       </div>
                     </CardContent>
                   </Card>
@@ -409,7 +379,7 @@ export default function Dashboard() {
                     <CardHeader>
                       <CardTitle>Analytics Dashboard</CardTitle>
                       <CardDescription>
-                        Insights and trends from your contract data
+                        Insights and trends from this session&apos;s uploads
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -425,7 +395,7 @@ export default function Dashboard() {
                     <CardHeader>
                       <CardTitle>Generated Reports</CardTitle>
                       <CardDescription>
-                        Download and share detailed analysis reports
+                        Download reports created in this session
                       </CardDescription>
                     </CardHeader>
                     <CardContent>

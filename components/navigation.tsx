@@ -18,16 +18,9 @@ export function Navigation() {
         <Link href="/dashboard">
           <Button variant="ghost">Dashboard</Button>
         </Link>
-        {/* "Results" link removed from here */}
       </div>
-      <div className="flex gap-4 items-center">
+      <div className="flex items-center">
         <ThemeToggle />
-        <Link href="/signin">
-          <Button variant="ghost">Sign In</Button>
-        </Link>
-        <Link href="/signup">
-          <Button>Get Started</Button>
-        </Link>
       </div>
     </nav>
   );

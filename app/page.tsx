@@ -85,7 +85,7 @@ export default function Home() {
               transition={{ duration: 0.8 }}
             >
               <h1 className="text-5xl md:text-7xl font-bold mb-6">
-                <span className="text-primary">Smart Contract</span>
+                <span className="text-primary">Maharashtra Redevlopment Contract</span>
                 <br />
                 <span className="text-foreground">Analysis Platform</span>
               </h1>

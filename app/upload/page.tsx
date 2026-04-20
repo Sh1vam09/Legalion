@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Navigation } from "@/components/navigation";
+import { readSessionUploads, writeSessionUploads, type SessionUpload } from "@/lib/session-uploads";
 import { Upload, FileText, CheckCircle, AlertCircle, X, Download, Eye, TrendingUp, Info, KeyRound, ShieldCheck, Zap, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,8 +22,15 @@ const SAMPLE_DOCUMENT = {
   url: "/sample-documents/redevelopment-agreement.pdf",
 };
 
+const SAMPLE_REPORT = {
+  name: "Redevelopment Agreement Risk Clauses Analysis Report.pdf",
+  url: "/sample-reports/redevelopment-agreement-clauses-analysis-report.pdf",
+};
+
 interface UploadedFile {
-  file: File;
+  file?: File;
+  name: string;
+  size: number;
   id: string; // This will be the file_id from the backend
   status:
   | "uploading"
@@ -32,6 +40,7 @@ interface UploadedFile {
   | "complete"
   | "error";
   progress: number;
+  uploadDate: string;
   errorMessage?: string;
 }
 
@@ -44,11 +53,46 @@ export default function UploadPage() {
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-lite");
   const [isPreparingSample, setIsPreparingSample] = useState(false);
 
+  const syncUploadedFiles = useCallback(
+    (updater: (prev: UploadedFile[]) => UploadedFile[]) => {
+      setUploadedFiles((prev) => {
+        const next = updater(prev);
+        const sessionUploads: SessionUpload[] = next.map((file) => ({
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          uploadDate: file.uploadDate,
+          status: file.status,
+          progress: file.progress,
+          errorMessage: file.errorMessage,
+        }));
+        writeSessionUploads(sessionUploads);
+        return next;
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const sessionUploads = readSessionUploads();
+    setUploadedFiles(
+      sessionUploads.map((upload) => ({
+        id: upload.id,
+        name: upload.name,
+        size: upload.size,
+        status: upload.status as UploadedFile["status"],
+        progress: upload.progress,
+        uploadDate: upload.uploadDate,
+        errorMessage: upload.errorMessage,
+      })),
+    );
+  }, []);
+
   // Function to run the analysis pipeline after a successful upload
   const startAnalysis = useCallback(async (fileId: string, key: string) => {
     try {
       // Step 2: Segment Clauses (25%)
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, status: "segmenting", progress: 25 } : f,
         ),
@@ -60,7 +104,7 @@ export default function UploadPage() {
       if (!segmentResponse.ok) throw new Error("Segmentation failed");
 
       // Step 3: Ambiguity Analysis (50%)
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId
             ? { ...f, status: "analyzing_ambiguity", progress: 50 }
@@ -74,7 +118,7 @@ export default function UploadPage() {
       if (!ambiguityResponse.ok) throw new Error("Ambiguity analysis failed");
 
       // Step 4: Deep Analysis (75%)
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, status: "deep_analysis", progress: 75 } : f,
         ),
@@ -86,7 +130,7 @@ export default function UploadPage() {
       if (!deepAnalysisResponse.ok) throw new Error("Deep analysis failed");
 
       // Step 5: Complete (100%)
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, status: "complete", progress: 100 } : f,
         ),
@@ -98,14 +142,14 @@ export default function UploadPage() {
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, status: "error", errorMessage } : f,
         ),
       );
       toast.error(errorMessage);
     }
-  }, [selectedModel]);
+  }, [selectedModel, syncUploadedFiles]);
 
   // Function to handle the initial file upload to the FastAPI backend
   const processFile = useCallback(async (file: File) => {
@@ -117,11 +161,14 @@ export default function UploadPage() {
     const tempId = Math.random().toString(36).substring(2, 15);
     const newFile: UploadedFile = {
       file,
+      name: file.name,
+      size: file.size,
       id: tempId,
       status: "uploading",
       progress: 0,
+      uploadDate: new Date().toISOString(),
     };
-    setUploadedFiles((prev) => [...prev, newFile]);
+    syncUploadedFiles((prev) => [...prev, newFile]);
 
     try {
       const formData = new FormData();
@@ -142,7 +189,7 @@ export default function UploadPage() {
       const fileId = result.file_id;
 
       // Update the file in the state with the actual file_id from the backend
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === tempId ? { ...f, id: fileId, progress: 100 } : f,
         ),
@@ -156,14 +203,14 @@ export default function UploadPage() {
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      setUploadedFiles((prev) =>
+      syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === tempId ? { ...f, status: "error", errorMessage } : f,
         ),
       );
       toast.error(errorMessage);
     }
-  }, [apiKey, selectedModel, startAnalysis]);
+  }, [apiKey, selectedModel, startAnalysis, syncUploadedFiles]);
 
   const handleSampleUpload = useCallback(async () => {
     if (!apiKey.trim()) {
@@ -223,7 +270,16 @@ export default function UploadPage() {
   });
 
   const removeFile = (id: string) => {
-    setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
+    syncUploadedFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleStaticPdfDownload = (url: string, fileName: string) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   // Function to view the RESULTANT REPORT PDF in a new tab
@@ -513,6 +569,47 @@ export default function UploadPage() {
                   </div>
                 </div>
 
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                        Sample analysed report available on the web
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="font-medium">{SAMPLE_REPORT.name}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Open the finished PDF report for the sample agreement or
+                        download it directly from this page.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => window.open(SAMPLE_REPORT.url, "_blank")}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Analysed Report
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          handleStaticPdfDownload(
+                            SAMPLE_REPORT.url,
+                            SAMPLE_REPORT.name,
+                          )
+                        }
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Report
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
                 <motion.div
                   {...getRootProps()}
                   className={`
@@ -578,11 +675,11 @@ export default function UploadPage() {
                               <FileText className="w-5 h-5 text-primary" />
                               <div>
                                 <p className="font-medium">
-                                  {uploadedFile.file.name}
+                                  {uploadedFile.name}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                   {(
-                                    uploadedFile.file.size /
+                                    uploadedFile.size /
                                     1024 /
                                     1024
                                   ).toFixed(2)}{" "}
@@ -634,7 +731,7 @@ export default function UploadPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  handleDownloadReport(uploadedFile.id, uploadedFile.file.name)
+                                  handleDownloadReport(uploadedFile.id, uploadedFile.name)
                                 }
                               >
                                 <Download className="w-4 h-4 mr-2" />
