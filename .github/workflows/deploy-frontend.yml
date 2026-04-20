@@ -18,6 +18,7 @@ jobs:
   deploy:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -38,7 +39,26 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
 
       - name: Deploy to Vercel
-        run: npx vercel@latest --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3; do
+            echo "Vercel deploy attempt ${attempt}/3"
+
+            if npx vercel@latest --prod --token="${{ secrets.VERCEL_TOKEN }}" --yes; then
+              exit 0
+            fi
+
+            if [ "${attempt}" -eq 3 ]; then
+              echo "Vercel deploy failed after 3 attempts."
+              exit 1
+            fi
+
+            echo "Deploy attempt ${attempt} failed. Waiting before retry..."
+            sleep 20
+          done
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_DISABLE_TELEMETRY: "1"
