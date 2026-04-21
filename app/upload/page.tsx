@@ -14,6 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Navigation } from "@/components/navigation";
 import { readSessionUploads, writeSessionUploads, type SessionUpload } from "@/lib/session-uploads";
+import { apiUrl, getApiErrorMessage } from "@/lib/api";
 import { Upload, FileText, CheckCircle, AlertCircle, X, Download, Eye, TrendingUp, Info, KeyRound, ShieldCheck, Zap, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,7 +99,7 @@ export default function UploadPage() {
         ),
       );
       const segmentResponse = await fetch(
-        `http://127.0.0.1:8000/segment/${fileId}`,
+        apiUrl(`/segment/${fileId}`),
         { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!segmentResponse.ok) throw new Error("Segmentation failed");
@@ -112,7 +113,7 @@ export default function UploadPage() {
         ),
       );
       const ambiguityResponse = await fetch(
-        `http://127.0.0.1:8000/analyze/ambiguity/${fileId}`,
+        apiUrl(`/analyze/ambiguity/${fileId}`),
         { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!ambiguityResponse.ok) throw new Error("Ambiguity analysis failed");
@@ -124,7 +125,7 @@ export default function UploadPage() {
         ),
       );
       const deepAnalysisResponse = await fetch(
-        `http://127.0.0.1:8000/analyze/deep/${fileId}`,
+        apiUrl(`/analyze/deep/${fileId}`),
         { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!deepAnalysisResponse.ok) throw new Error("Deep analysis failed");
@@ -138,10 +139,10 @@ export default function UploadPage() {
 
       toast.success(`File analysis completed successfully!`);
     } catch (error) {
-      let errorMessage = "An unknown error occurred during analysis.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
+      const errorMessage = getApiErrorMessage(
+        error,
+        "An unknown error occurred during analysis.",
+      );
       syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, status: "error", errorMessage } : f,
@@ -176,7 +177,7 @@ export default function UploadPage() {
       formData.append("api_key", apiKey.trim());
       formData.append("model_name", selectedModel);
 
-      const uploadResponse = await fetch("http://127.0.0.1:8000/upload", {
+      const uploadResponse = await fetch(apiUrl("/upload"), {
         method: "POST",
         body: formData,
       });
@@ -199,10 +200,10 @@ export default function UploadPage() {
       // Start the analysis pipeline immediately after upload success
       startAnalysis(fileId, apiKey.trim());
     } catch (error) {
-      let errorMessage = "An unknown error occurred during upload.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
+      const errorMessage = getApiErrorMessage(
+        error,
+        "An unknown error occurred during upload.",
+      );
       syncUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === tempId ? { ...f, status: "error", errorMessage } : f,
@@ -286,14 +287,14 @@ export default function UploadPage() {
   const handleViewPdf = (fileId: string) => {
     toast.info("Opening Analysis Report in new tab...");
     // Hits the FastAPI endpoint that generates/serves the report PDF
-    window.open(`http://127.0.0.1:8000/report/${fileId}`, "_blank");
+    window.open(apiUrl(`/report/${fileId}`), "_blank");
   };
 
   // Function to download the REPORT PDF
   const handleDownloadReport = async (fileId: string, fileName: string) => {
     toast.info(`Preparing report download for ${fileName}...`);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/report/${fileId}`);
+      const response = await fetch(apiUrl(`/report/${fileId}`));
       if (!response.ok) {
         throw new Error("Could not fetch the report.");
       }
@@ -309,10 +310,10 @@ export default function UploadPage() {
       window.URL.revokeObjectURL(url);
       toast.success("Report downloaded successfully!");
     } catch (error) {
-      let errorMessage = "Could not download report.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
+      const errorMessage = getApiErrorMessage(
+        error,
+        "Could not download report.",
+      );
       toast.error(errorMessage);
     }
   };

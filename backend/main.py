@@ -25,15 +25,24 @@ from notebook_module import (
 )
 
 app = FastAPI(title="Contract Analysis API", version="1.0.0")
-origins = [
+
+default_origins = [
     "http://localhost:5173",
-    "http://localhost:3000" # Your frontend's address
-    # You can add other addresses here if needed
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
+configured_origins = [
+    origin.strip()
+    for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
+    if origin.strip()
+]
+origin_regex = os.getenv("FRONTEND_ORIGIN_REGEX")
+origins = [*default_origins, *configured_origins]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -26,6 +26,7 @@ import {
   writeSessionUploads,
   type SessionUpload,
 } from "@/lib/session-uploads";
+import { apiUrl, getApiErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Search,
@@ -92,7 +93,7 @@ export default function Dashboard() {
 
   const handleDownloadReport = (fileId: string, fileName: string) => {
     toast.info(`Starting download for ${fileName}...`);
-    fetch(`http://127.0.0.1:8000/report/${fileId}`)
+    fetch(apiUrl(`/report/${fileId}`))
       .then((response) => {
         if (!response.ok) throw new Error("Could not fetch the report.");
         return response.blob();
@@ -109,13 +110,13 @@ export default function Dashboard() {
         toast.success("Report downloaded!");
       })
       .catch((error) => {
-        toast.error(`Error downloading report: ${error.message}`);
+        toast.error(getApiErrorMessage(error, "Error downloading report."));
       });
   };
 
   const handleViewPdf = (fileId: string) => {
     toast.info("Opening PDF in new tab...");
-    window.open(`http://127.0.0.1:8000/data/${fileId}/uploaded.pdf`, "_blank");
+    window.open(apiUrl(`/data/${fileId}/uploaded.pdf`), "_blank");
   };
 
   const handleDelete = (id: string) => {

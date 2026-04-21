@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Navigation } from '@/components/navigation';
 import { KnowledgeGraph } from '@/components/knowledge-graph';
+import { apiUrl } from '@/lib/api';
 import {
   AlertTriangle,
   CheckCircle,
@@ -35,7 +36,7 @@ function ResultsContent() {
 
   useEffect(() => {
     if (fileId) {
-      fetch(`http://127.0.0.1:8000/data/${fileId}/final_comprehensive_analysis.json`)
+      fetch(apiUrl(`/data/${fileId}/final_comprehensive_analysis.json`))
         .then(res => res.json())
         .then(json => {
           setData(json);
@@ -101,7 +102,7 @@ function ResultsContent() {
                 </p>
               </div>
               <div className="flex items-center space-x-2 mt-4 md:mt-0">
-                <Button variant="outline" size="sm" onClick={() => window.open(`http://127.0.0.1:8000/report/${fileId}`, '_blank')}>
+                <Button variant="outline" size="sm" onClick={() => window.open(apiUrl(`/report/${fileId}`), '_blank')}>
                   <Download className="w-4 h-4 mr-2" />
                   Export PDF
                 </Button>
