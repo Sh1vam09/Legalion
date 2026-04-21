@@ -15,14 +15,6 @@ import google.generativeai as genai
 from google.api_core import exceptions
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 
-import pandas as pd
-import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
-from pypdf import PdfReader # Add this import
-
-import matplotlib.pyplot as plt
-import seaborn as sns
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.colors import Color
@@ -347,6 +339,9 @@ def load_rag_components():
     """Loads the FAISS index, metadata, and sentence transformer model into memory."""
     global faiss_index, metadata, embedding_model
     try:
+        import faiss
+        from sentence_transformers import SentenceTransformer
+
         if faiss_index is None:
             logging.info(f"Loading FAISS index from {FAISS_INDEX_PATH}")
             faiss_index = faiss.read_index(FAISS_INDEX_PATH)
@@ -826,6 +821,10 @@ def run_analysis_pipeline(analysis_data: Dict[str, Dict[str, Any]]):
 
 def generate_pdf_report(json_path: str, output_path: str):
     """Generates a comprehensive PDF report from the final analysis JSON file."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
     
     try:
         with open(json_path, "r", encoding='utf-8') as f:
