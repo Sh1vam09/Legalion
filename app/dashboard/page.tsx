@@ -340,11 +340,22 @@ export default function Dashboard() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem
+                                        onClick={() => {
+                                          window.location.href = `/results?fileId=${upload.id}`;
+                                        }}
+                                        disabled={upload.status !== "complete"}
+                                        className="font-medium text-blue-500 focus:text-blue-600 cursor-pointer"
+                                      >
+                                        <FileText className="mr-2 w-4 h-4" />
+                                        View Analysis Results
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
                                         onClick={() => handleViewPdf(upload.id)}
                                         disabled={upload.status !== "complete"}
+                                        className="cursor-pointer"
                                       >
                                         <Eye className="mr-2 w-4 h-4" />
-                                        View PDF
+                                        View Source PDF
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() =>

@@ -611,7 +611,7 @@ export default function UploadPage() {
                   </div>
                 </div>
 
-                <motion.div
+                <div
                   {...getRootProps()}
                   className={`
                     relative p-12 border-2 border-dashed rounded-2xl transition-all duration-300 cursor-pointer
@@ -620,8 +620,6 @@ export default function UploadPage() {
                       : "border-muted-foreground/25 hover:border-primary/50"
                     }
                   `}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
                 >
                   <input {...getInputProps()} />
                   <div className="text-center">
@@ -644,7 +642,7 @@ export default function UploadPage() {
                     </p>
                     <Button variant="outline">Browse Files</Button>
                   </div>
-                </motion.div>
+                </div>
               </CardContent>
             </Card>
 

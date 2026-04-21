@@ -57,11 +57,11 @@ function ResultsContent() {
     );
   }
 
-  if (!data) {
+  if (!data || !Array.isArray(data.clause_analysis)) {
     return (
       <div className="min-h-screen flex items-center justify-center flex-col space-y-4">
-        <h2 className="text-2xl font-bold">No analysis found</h2>
-        <p className="text-muted-foreground">Please upload a document first.</p>
+        <h2 className="text-2xl font-bold">No analysis found or data is incomplete</h2>
+        <p className="text-muted-foreground">Please upload a document first, or wait for the analysis to complete.</p>
         <Button onClick={() => window.location.href = '/upload'}>Go to Upload</Button>
       </div>
     );
@@ -131,7 +131,7 @@ function ResultsContent() {
                           {metric.value}{metric.suffix}
                         </span>
                       </div>
-                      <Progress value={(metric.value / data.clause_analysis.length) * 100} className="h-2" />
+                      <Progress value={data.clause_analysis.length ? (metric.value / data.clause_analysis.length) * 100 : 0} className="h-2" />
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -220,7 +220,7 @@ function ResultsContent() {
                       <CardDescription>Cross-clause conflicts detected</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {data.systemic_risks.map((risk: any, index: number) => (
+                      {(data.systemic_risks || []).map((risk: any, index: number) => (
                         <div key={index} className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/30">
                           <p className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-1 uppercase">{risk.risk_type}</p>
                           <p className="text-sm mb-2">{risk.description}</p>
@@ -302,7 +302,7 @@ function ResultsContent() {
                 </CardHeader>
                 <CardContent>
                   <KnowledgeGraph
-                    data={data.knowledge_graph}
+                    data={data.knowledge_graph || { nodes: [], links: [] }}
                     clauseAnalysis={data.clause_analysis}
                   />
                 </CardContent>

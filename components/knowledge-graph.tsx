@@ -23,6 +23,9 @@ interface Node {
   val: number;
   x?: number;
   y?: number;
+  fx?: number;
+  fy?: number;
+  targetRadius?: number;
   __bckgDimensions?: [number, number];
 }
 
@@ -49,6 +52,110 @@ interface KnowledgeGraphProps {
   clauseAnalysis: Clause[];
 }
 
+const LABEL_Y_OFFSET = 12;
+const LABEL_CORNER_RADIUS = 6;
+
+const paintNodeLabelBackground = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) => {
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, width, height, LABEL_CORNER_RADIUS);
+  } else {
+    ctx.rect(x, y, width, height);
+  }
+  ctx.fill();
+};
+
+const getNodeRadius = (node: Pick<Node, 'val'> | { val?: number }) => {
+  const val = Number(node?.val ?? 12);
+  return Math.max(10, Math.sqrt(val) * 4);
+};
+
+const getEstimatedLabelHalfWidth = (
+  node: Pick<Node, 'label'> | { label?: string }
+) => {
+  const label = String(node?.label ?? '').trim();
+  return Math.max(28, label.length * 4.8);
+};
+
+const getCollisionRadius = (
+  node: Pick<Node, 'val' | 'label'> | { val?: number; label?: string }
+) => {
+  return Math.max(
+    getNodeRadius(node) + 35,
+    getEstimatedLabelHalfWidth(node) + 20
+  );
+};
+
+const getLinkDistance = (link: { source?: any; target?: any }) => {
+  const source = (link?.source ?? {}) as Node;
+  const target = (link?.target ?? {}) as Node;
+  const sourceGroup = String(source.group ?? '').toLowerCase();
+  const targetGroup = String(target.group ?? '').toLowerCase();
+  const sourceRadius = Number(source.targetRadius ?? 0);
+  const targetRadius = Number(target.targetRadius ?? 0);
+  const ringGap = Math.abs(sourceRadius - targetRadius);
+
+  // Distances for clause-entity connections
+  if (sourceGroup === 'entity' || targetGroup === 'entity') {
+    return Math.max(180, ringGap + 80);
+  }
+
+  return Math.max(150, ringGap + 60);
+};
+
+const positionNodesOnRing = (
+  nodes: Node[],
+  radius: number,
+  angleOffset = 0
+) => {
+  if (nodes.length === 0) return [];
+
+  return nodes.map((node, index) => {
+    const angle = angleOffset + (index / nodes.length) * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+
+    return {
+      ...node,
+      targetRadius: radius,
+      x,
+      y,
+      fx: x,
+      fy: y,
+    };
+  });
+};
+
+const positionNodesAcrossRings = (
+  nodes: Node[],
+  startRadius: number,
+  ringGap: number,
+  maxNodesPerRing: number,
+  angleOffset = 0
+) => {
+  const positionedNodes: Node[] = [];
+
+  for (let index = 0; index < nodes.length; index += maxNodesPerRing) {
+    const ringNodes = nodes.slice(index, index + maxNodesPerRing);
+    const ringIndex = Math.floor(index / maxNodesPerRing);
+    positionedNodes.push(
+      ...positionNodesOnRing(
+        ringNodes,
+        startRadius + ringIndex * ringGap,
+        angleOffset + ringIndex * 0.35
+      )
+    );
+  }
+
+  return positionedNodes;
+};
+
 export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnalysis }) => {
   const fgRef = useRef<any>();
   const [selectedNode, setSelectedNode] = useState<any>(null);
@@ -61,52 +168,99 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
 
   // Memoize data to prevent unnecessary re-renders
   const graphData = useMemo(() => {
+    const clauseRiskLookup = new Map(
+      clauseAnalysis.map(clause => [
+        normalizeClauseKey(clause.clause_number),
+        clause.overall_risk_level,
+      ])
+    );
+
     const seen = new Set();
     const uniqueNodes = data.nodes.filter(n => {
       const nid = String(n.id).trim();
       if (seen.has(nid)) return false;
       seen.add(nid);
       return true;
-    }).map(node => ({ ...node, id: String(node.id).trim() }));
+    }).map(node => {
+      const normalizedId = String(node.id).trim();
+      const riskLevel = clauseRiskLookup.get(normalizeClauseKey(normalizedId)) ?? 'Not Assessed';
+
+      return {
+        ...node,
+        id: normalizedId,
+        riskLevel,
+      };
+    });
+
+    const entityNodes = uniqueNodes.filter(node => String(node.group).toLowerCase() === 'entity');
+    const clauseNodes = uniqueNodes.filter(
+      node => String(node.group).toLowerCase() === 'clause'
+    );
+    const nonClauseNodes = uniqueNodes.filter(
+      node => String(node.group).toLowerCase() !== 'clause' && String(node.group).toLowerCase() !== 'entity'
+    );
+
+    const sortedClauseNodes = [...clauseNodes].sort((a, b) => {
+      const riskWeight = (riskLevel: string) => {
+        if (riskLevel === 'High') return 0;
+        if (riskLevel === 'Medium') return 1;
+        if (riskLevel === 'Low') return 2;
+        return 3;
+      };
+
+      const riskDiff = riskWeight(String((a as any).riskLevel)) - riskWeight(String((b as any).riskLevel));
+      if (riskDiff !== 0) return riskDiff;
+
+      return String(a.label).localeCompare(String(b.label), undefined, { numeric: true });
+    });
+
+    const positionedNodes = [
+      ...positionNodesOnRing(entityNodes, 150, -Math.PI / 2),
+      ...positionNodesAcrossRings(sortedClauseNodes, 400, 150, 6, -Math.PI / 2),
+      ...positionNodesAcrossRings(nonClauseNodes, 750, 120, 8, -Math.PI / 3),
+    ];
+
+    // Filter links to only show clause-entity relationships, not clause-clause
+    const entityIds = new Set(entityNodes.map(n => n.id));
+    const clauseIds = new Set(clauseNodes.map(n => n.id));
+
+    const filteredLinks = data.links.filter(link => {
+      const sourceId = String(link.source).trim();
+      const targetId = String(link.target).trim();
+      const sourceIsEntity = entityIds.has(sourceId);
+      const targetIsEntity = entityIds.has(targetId);
+      const sourceIsClause = clauseIds.has(sourceId);
+      const targetIsClause = clauseIds.has(targetId);
+
+      // Keep only clause-entity or entity-clause edges
+      return (sourceIsClause && targetIsEntity) || (sourceIsEntity && targetIsClause);
+    }).map(link => ({
+      ...link,
+      source: String(link.source).trim(),
+      target: String(link.target).trim()
+    }));
 
     return {
-      nodes: uniqueNodes,
-      links: data.links.map(link => ({ 
-        ...link, 
-        source: String(link.source).trim(), 
-        target: String(link.target).trim() 
-      }))
+      nodes: positionedNodes,
+      links: filteredLinks
     };
-  }, [data]);
+  }, [data, clauseAnalysis]);
 
   useEffect(() => {
     if (fgRef.current) {
       const fg = fgRef.current;
 
-      // Stronger repulsion so nodes spread out more
-      fg.d3Force('charge').strength(-250);
+      // Disable forces since nodes are positioned at fixed coordinates
+      fg.d3Force('charge', null);
+      fg.d3Force('link', null);
+      fg.d3Force('center', forceCenter(0, 0));
+      fg.d3Force('radial', null);
+      fg.d3Force('collide', null);
 
-      // Longer links so clause nodes sit further from their entity
-      fg.d3Force('link').distance(140);
-
-      // Centering
-      fg.d3Force('center', forceCenter());
-      fg.d3Force('center').strength(0.1);
-
-      // Gentle radial pull toward the middle
-      fg.d3Force('radial', forceRadial(0, 0).strength(0.04));
-
-      // Collision radius is proportional to node val so larger nodes
-      // never overlap — fixes the "can't click buried nodes" problem
-      fg.d3Force('collide', forceCollide((node: any) => {
-        const val = (node as any).val || 8;
-        return Math.sqrt(val) * 12 + 10; // entity≈60  high-risk≈52  low≈44
-      }));
-
-      // Zoom to fit after simulation settles
+      // Zoom to fit after initial render
       setTimeout(() => {
-        fg.zoomToFit(800, 80);
-      }, 1200);
+        fg.zoomToFit(400, 100);
+      }, 400);
     }
   }, [graphData]);
 
@@ -137,25 +291,33 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
   }, [selectedNode, clauseAnalysis]);
 
   return (
-    <div className="relative w-full h-[650px] bg-slate-950/20 rounded-2xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-500">
+    <div className="relative w-full h-[760px] bg-slate-950/20 rounded-2xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-500">
       <ForceGraph2D
         ref={fgRef}
         graphData={graphData}
         nodeLabel="label"
         nodeColor={node => (node as Node).color}
-        nodeRelSize={7} // Larger nodes for better visibility
+        nodeRelSize={10} // Larger nodes for better clickability
         nodeVal={node => (node as Node).val}
-        linkDirectionalArrowLength={4}
-        linkDirectionalArrowRelPos={1}
-        linkCurvature={0.2}
+        linkDirectionalArrowLength={6}
+        linkDirectionalArrowRelPos={0.85}
+        linkCurvature={0.4}
         linkLabel="label"
-        linkColor={() => "rgba(255, 255, 255, 0.2)"}
-        linkWidth={1.5}
+        linkColor={() => "rgba(147, 197, 253, 0.7)"}
+        linkWidth={2.5}
         backgroundColor="rgba(0,0,0,0)"
-        cooldownTicks={150}
+        enableNodeDrag={false}
+        warmupTicks={80}
+        cooldownTicks={220}
         onNodeClick={(node: any) => {
           setSelectedNode(node);
           toast.info(`Inspecting: ${node.label}`);
+          if (fgRef.current) {
+            // Shift the camera center to the right so the node appears on the left,
+            // avoiding the z-[100] right-side detail panel.
+            fgRef.current.centerAt(node.x + 200, node.y, 800);
+            fgRef.current.zoom(2, 800);
+          }
         }}
         onNodeHover={(node: any) => {
           setHoverNode(node);
@@ -169,6 +331,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
           ctx.font = `${fontSize}px 'Outfit', sans-serif`;
           const textWidth = ctx.measureText(label).width;
           const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.4) as [number, number];
+          const labelX = node.x - bckgDimensions[0] / 2;
+          const labelY = node.y + LABEL_Y_OFFSET;
+          const nodeRadius = getNodeRadius(node as Node);
 
           const isSelected = selectedNode && String(selectedNode.id) === String(node.id);
           const isHovered = hoverNode && String(hoverNode.id) === String(node.id);
@@ -176,7 +341,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
           // Outer Glow
           if (isSelected || isHovered) {
              ctx.beginPath();
-             ctx.arc(node.x, node.y, (isHovered ? 16 : 14), 0, 2 * Math.PI, false);
+             ctx.arc(node.x, node.y, nodeRadius + (isHovered ? 6 : 4), 0, 2 * Math.PI, false);
              ctx.fillStyle = isSelected ? 'rgba(96, 165, 250, 0.3)' : 'rgba(255, 255, 255, 0.15)';
              ctx.fill();
              ctx.strokeStyle = isSelected ? '#60a5fa' : 'rgba(255, 255, 255, 0.5)';
@@ -186,7 +351,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
 
           // Central Node Circle
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 7, 0, 2 * Math.PI, false);
+          ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
           ctx.fillStyle = node.color;
           ctx.shadowBlur = 10;
           ctx.shadowColor = node.color;
@@ -195,31 +360,84 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
 
           // Label Background (More opaque for readability)
           ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-          if (ctx.roundRect) {
-            ctx.roundRect(node.x - bckgDimensions[0] / 2, node.y + 12, bckgDimensions[0], bckgDimensions[1], 6);
-          } else {
-            ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y + 12, bckgDimensions[0], bckgDimensions[1]);
-          }
-          ctx.fill();
+          paintNodeLabelBackground(ctx, labelX, labelY, bckgDimensions[0], bckgDimensions[1]);
 
           // Label Text
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillStyle = isSelected ? '#60a5fa' : '#ffffff';
           ctx.font = `bold ${fontSize}px 'Outfit', sans-serif`;
-          ctx.fillText(label, node.x, node.y + 12 + (bckgDimensions[1] / 2));
+          ctx.fillText(label, node.x, labelY + (bckgDimensions[1] / 2));
           
           node.__bckgDimensions = bckgDimensions; 
         }}
         nodePointerAreaPaint={(node: any, color, ctx) => {
-          // Single generous fixed circle — never depends on __bckgDimensions.
-          // This guarantees every node is clickable at any zoom level,
-          // even before nodeCanvasObject has run for that node on the first frame.
+          const nodeRadius = getNodeRadius(node as Node);
           ctx.fillStyle = color;
+
+          // 1. Draw a precise circle for the node hit area (just 4px padding instead of 30px)
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 28, 0, 2 * Math.PI, false);
+          ctx.arc(node.x, node.y, nodeRadius + 4, 0, 2 * Math.PI);
           ctx.fill();
+
+          // 2. Draw a precise rectangle for the label hit area
+          if (node.__bckgDimensions) {
+            const [w, h] = node.__bckgDimensions;
+            const labelX = node.x - w / 2;
+            const labelY = node.y + LABEL_Y_OFFSET;
+
+            ctx.beginPath();
+            // Add a tiny 2px padding around the exact text box boundaries
+            ctx.rect(labelX - 2, labelY - 2, w + 4, h + 4);
+            ctx.fill();
+          }
         }}
+        linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+          const source = link.source;
+          const target = link.target;
+
+          if (!source || !target || !source.x || !target.x) return;
+
+          const sourceGroup = String(source.group ?? '').toLowerCase();
+          const targetGroup = String(target.group ?? '').toLowerCase();
+          const sourceIsEntity = sourceGroup === 'entity';
+          const targetIsEntity = targetGroup === 'entity';
+
+          // Determine which node is entity (center) and which is clause (outer)
+          const entityNode = sourceIsEntity ? source : target;
+          const clauseNode = targetIsEntity ? source : target;
+
+          // Calculate angle from entity to clause for offset direction
+          const dx = clauseNode.x - entityNode.x;
+          const dy = clauseNode.y - entityNode.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+
+          // Perpendicular angle for curve offset
+          const perpAngle = angle + Math.PI / 2;
+
+          // Control point offset - curves outward to avoid other nodes
+          const curvature = 0.3;
+          const controlOffset = dist * curvature;
+
+          const midX = (entityNode.x + clauseNode.x) / 2;
+          const midY = (entityNode.y + clauseNode.y) / 2;
+
+          // Control point curves outward from center
+          const cx = midX + Math.cos(perpAngle) * controlOffset;
+          const cy = midY + Math.sin(perpAngle) * controlOffset;
+
+          // Draw bezier curve
+          ctx.beginPath();
+          ctx.moveTo(entityNode.x, entityNode.y);
+          ctx.quadraticCurveTo(cx, cy, clauseNode.x, clauseNode.y);
+
+          // Gradient color based on connection type
+          ctx.strokeStyle = 'rgba(147, 197, 253, 0.6)';
+          ctx.lineWidth = 2 / globalScale;
+          ctx.stroke();
+        }}
+        linkCanvasObjectMode={() => 'replace'}
       />
       
       {/* Visual Overlay Legend */}
