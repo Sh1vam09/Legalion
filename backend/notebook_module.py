@@ -3,6 +3,7 @@
 import os
 import json
 import time
+import re
 import functools
 import logging
 import hashlib
@@ -544,18 +545,133 @@ def call_gemini_api(prompt: str, limiter: RateLimiter, use_json_mode: bool = Tru
 
 # Colour palette for detected parties (cycles if more than 6 parties found)
 PARTY_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4"]
+PARTY_EXTRACTION_SAMPLE_CHAR_LIMIT = 25_000
 
-def extract_contract_parties(all_clauses: List[Dict[str, Any]], limiter: RateLimiter) -> List[Dict]:
+OBLIGATION_VERBS = [
+    "shall",
+    "must",
+    "will",
+    "agrees",
+    "agree",
+    "undertakes",
+    "is required to",
+    "shall be responsible for",
+    "shall be liable for",
+]
+
+def _build_party_keywords(aliases: List[str]) -> List[str]:
+    keywords = []
+    for alias in aliases:
+        alias = alias.lower().strip()
+        if not alias:
+            continue
+        for verb in OBLIGATION_VERBS:
+            keywords.append(f"{alias} {verb}")
+    return sorted(set(keywords))
+
+def _sample_contract_for_party_extraction(all_clauses: List[Dict[str, Any]]) -> str:
+    sampled_clauses = []
+    total_chars = 0
+
+    for clause in all_clauses:
+        clause_number = clause.get("clause_number", "")
+        clause_content = str(clause.get("content", "")).strip()
+        if not clause_content:
+            continue
+
+        clause_block = f"--- CLAUSE {clause_number} ---\n{clause_content}"
+        if sampled_clauses and (total_chars + len(clause_block) > PARTY_EXTRACTION_SAMPLE_CHAR_LIMIT):
+            break
+
+        sampled_clauses.append(clause_block)
+        total_chars += len(clause_block)
+
+    return "\n\n".join(sampled_clauses)
+
+def _normalize_party_record(party: Dict[str, Any]) -> Dict[str, Any] | None:
+    name = str(party.get("name", "")).strip()
+    if not name:
+        return None
+
+    mention_keywords = party.get("mention_keywords") or [name, f"the {name}"]
+    mention_keywords = [
+        str(keyword).strip().lower()
+        for keyword in mention_keywords
+        if str(keyword).strip()
+    ]
+    mention_keywords = sorted(set(mention_keywords))
+
+    obligation_keywords = party.get("obligation_keywords") or _build_party_keywords(mention_keywords)
+    obligation_keywords = [
+        str(keyword).strip().lower()
+        for keyword in obligation_keywords
+        if str(keyword).strip()
+    ]
+
+    return {
+        "name": name,
+        "mention_keywords": mention_keywords,
+        "obligation_keywords": sorted(set(obligation_keywords)),
+    }
+
+def _merge_parties(parties: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    merged: Dict[str, Dict[str, Any]] = {}
+
+    for party in parties:
+        normalized_party = _normalize_party_record(party)
+        if normalized_party is None:
+            continue
+
+        party_key = normalized_party["name"].strip().lower()
+        existing_party = merged.get(party_key)
+        if existing_party is None:
+            merged[party_key] = normalized_party
+            continue
+
+        existing_party["mention_keywords"] = sorted(set(
+            existing_party.get("mention_keywords", []) + normalized_party.get("mention_keywords", [])
+        ))
+        existing_party["obligation_keywords"] = sorted(set(
+            existing_party.get("obligation_keywords", []) + normalized_party.get("obligation_keywords", [])
+        ))
+
+    return list(merged.values())
+
+def _get_clause_party_relation(content: str, party: Dict[str, Any]) -> str | None:
+    lowered_content = content.lower()
+    obligation_keywords = [
+        str(keyword).strip().lower()
+        for keyword in party.get("obligation_keywords", [])
+        if str(keyword).strip()
+    ]
+    if any(keyword in lowered_content for keyword in obligation_keywords):
+        return "Obligation"
+
+    mention_keywords = [
+        str(keyword).strip().lower()
+        for keyword in party.get("mention_keywords", [])
+        if str(keyword).strip()
+    ]
+    for alias in mention_keywords:
+        forward_pattern = rf"\b{re.escape(alias)}\b.{0,80}\b(shall|must|will|agrees?|undertakes?|responsible|liable)\b"
+        backward_pattern = rf"\b(shall|must|will|agrees?|undertakes?|responsible|liable)\b.{0,80}\b{re.escape(alias)}\b"
+        if re.search(forward_pattern, lowered_content) or re.search(backward_pattern, lowered_content):
+            return "Obligation"
+        if re.search(rf"\b{re.escape(alias)}\b", lowered_content):
+            return "Reference"
+
+    return None
+
+def _legacy_extract_contract_parties_unused(all_clauses: List[Dict[str, Any]], limiter: RateLimiter) -> List[Dict]:
     """
     Uses Gemini to dynamically detect the main contracting parties from the clause text.
-    Returns a list of dicts: [{"name": "...", "obligation_keywords": [...]}]
-    Falls back to generic Party A / Party B on failure.
+    Returns a list of dicts:
+    [{"name": "...", "mention_keywords": [...], "obligation_keywords": [...]}]
     """
-    # Sample the first ~30 clauses to keep the prompt manageable
-    sample_text = "\n\n".join([
-        f"--- CLAUSE {c['clause_number']} ---\n{c['content']}"
-        for c in all_clauses[:30]
-    ])
+    sample_text = _sample_contract_for_party_extraction(all_clauses)
+    if not sample_text:
+        logging.warning("  - No clause text available for party extraction.")
+        return []
 
     prompt = f"""
 You are a legal document analyst. Read the following contract clause samples and identify the main contracting parties (typically 2–4 distinct entities such as Employer, Employee, Developer, Society, Vendor, Client, Lessor, Lessee, etc.).
@@ -586,6 +702,67 @@ Return ONLY a valid JSON array. No extra text, no markdown. Each element must fo
         {"name": "Party A", "obligation_keywords": ["party a shall", "party a will", "party a must", "party a agrees"]},
         {"name": "Party B", "obligation_keywords": ["party b shall", "party b will", "party b must", "party b agrees"]},
     ]
+
+def _legacy_extract_contract_parties_robust_unused(all_clauses: List[Dict[str, Any]], limiter: RateLimiter) -> List[Dict[str, Any]]:
+    return []
+
+def extract_contract_parties(all_clauses: List[Dict[str, Any]], limiter: RateLimiter) -> List[Dict]:
+    """
+    Uses Gemini to dynamically detect the main contracting parties from the clause text.
+    Returns a list of dicts:
+    [{"name": "...", "mention_keywords": [...], "obligation_keywords": [...]}]
+    """
+    sample_text = _sample_contract_for_party_extraction(all_clauses)
+    if not sample_text:
+        logging.warning("  - No clause text available for party extraction.")
+        return []
+
+    prompt = f"""
+You are a legal document analyst. Read the following contract clause samples and identify the main contracting parties or defined entities that actually appear in the contract.
+
+For each party you detect, provide:
+1. A short display name for the graph node.
+2. `mention_keywords`: exact lowercase surface forms from the contract that refer to that same party.
+3. `obligation_keywords`: exact lowercase duty-bearing phrases from the contract when available.
+
+Rules:
+- Prefer the real defined role or entity used in the contract.
+- If the contract defines a party as something like "ABC Developers Pvt. Ltd. (the Developer)", prefer "Developer" as the display name and include both "abc developers pvt. ltd." and "developer" in `mention_keywords`.
+- Do not invent generic roles that are not supported by the text.
+- Do not return "Party A" or "Party B" if the contract gives a clearer defined role or entity for that party.
+- Only return "Party A", "Party B", "First Party", etc. if the contract truly never provides a clearer identifier.
+- Keep every keyword lowercase.
+
+Return ONLY a valid JSON array. No extra text, no markdown. Each element must follow this schema exactly:
+[{{"name": "PartyName", "mention_keywords": ["party name", "defined role"], "obligation_keywords": ["party shall", "party will", "party must", "party agrees"]}}]
+
+--- CONTRACT CLAUSES SAMPLE ---
+{sample_text}
+---
+"""
+    logging.info("  - Detecting contracting parties from clause text...")
+    response = call_gemini_api(prompt, limiter, use_json_mode=True)
+
+    try:
+        parties = json.loads(response)
+        if isinstance(parties, list):
+            merged_parties = _merge_parties(parties)
+            if merged_parties:
+                logging.info(f"  - Detected parties: {[p.get('name') for p in merged_parties]}")
+                return merged_parties
+    except (json.JSONDecodeError, TypeError):
+        logging.error("  - Failed to parse party extraction response.")
+
+    logging.warning("  - No reliable parties extracted from the LLM response.")
+    return []
+
+def extract_contract_parties_robust(all_clauses: List[Dict[str, Any]], limiter: RateLimiter) -> List[Dict[str, Any]]:
+    detected_parties = extract_contract_parties(all_clauses, limiter)
+    if detected_parties:
+        return detected_parties
+
+    logging.warning("  - Skipping entity nodes because no reliable contract parties were extracted.")
+    return []
 
 def generate_knowledge_graph_data(
     systemic_risks: List[Dict],
@@ -632,15 +809,15 @@ def generate_knowledge_graph_data(
         })
 
         # Draw obligation links for each detected party dynamically
-        content = clause.get("content", "").lower()
+        content = clause.get("content", "")
         for party in parties:
-            keywords = party.get("obligation_keywords", [])
-            if any(kw.lower() in content for kw in keywords):
+            relation = _get_clause_party_relation(content, party)
+            if relation:
                 links.append({
                     "source": party["name"],
                     "target": c_num,
-                    "label": "Obligation",
-                    "type": "Obligation",
+                    "label": relation,
+                    "type": relation,
                 })
 
     # Draw conflict links between clauses that share a systemic risk
@@ -769,7 +946,7 @@ def run_analysis_pipeline(analysis_data: Dict[str, Dict[str, Any]]):
             del data['loophole_fingerprints']
 
     logging.info("\n--- Starting Phase 3.4: Dynamic Party Detection for Knowledge Graph ---")
-    detected_parties = extract_contract_parties(all_clauses, limiter)
+    detected_parties = extract_contract_parties_robust(all_clauses, limiter)
     logging.info(f"  - Using {len(detected_parties)} detected parties for graph: {[p['name'] for p in detected_parties]}")
 
     final_output = {
@@ -937,3 +1114,4 @@ def generate_pdf_report(json_path: str, output_path: str):
 # --- Execute Phase 4 ---
 # This block will now be managed by the FastAPI app
 # generate_pdf_report(FINAL_ANALYSIS_OUTPUT, PDF_REPORT_OUTPUT)
+

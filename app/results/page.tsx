@@ -145,7 +145,6 @@ function ResultsContent() {
               <TabsTrigger value="risks">Risk Analysis</TabsTrigger>
               <TabsTrigger value="graph">Knowledge Graph</TabsTrigger>
               <TabsTrigger value="clauses">Key Clauses</TabsTrigger>
-              <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -336,32 +335,6 @@ function ResultsContent() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="recommendations">
-              <Card className="glass dark:glass-dark border-white/20">
-                <CardHeader>
-                  <CardTitle>AI Strategic Recommendations</CardTitle>
-                  <CardDescription>
-                    Actionable insights to protect the Society's interests
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30">
-                      <h4 className="font-bold text-green-700 dark:text-green-400 mb-2">1. Define "Approved Plans" & Quality Standards</h4>
-                      <p className="text-sm">Explicitly define what constitutes an 'Approved Plan' (specify the authority and date) and include a detailed specification annexure for materials and finishes to prevent cost-cutting.</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30">
-                      <h4 className="font-bold text-blue-700 dark:text-blue-400 mb-2">2. Link Timeline to specific Milestones</h4>
-                      <p className="text-sm">Replace vague phrases like "all approvals" with a hard deadline or a list of specific mandatory approvals (e.g., IOD, CC). Include liquidated damages for delays.</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/30">
-                      <h4 className="font-bold text-purple-700 dark:text-purple-400 mb-2">3. Restrict Mortgage Rights</h4>
-                      <p className="text-sm">Limit the Developer's right to mortgage the property only to the free-sale component. Require a No Objection Certificate (NOC) from the RWA before any mortgage is registered.</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
           </Tabs>
         </div>
       </div>

@@ -53,6 +53,11 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
   const fgRef = useRef<any>();
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [hoverNode, setHoverNode] = useState<any>(null);
+  const normalizeClauseKey = (value: unknown) =>
+    String(value ?? '')
+      .replace(/^clause\s*/i, '')
+      .trim()
+      .toLowerCase();
 
   // Memoize data to prevent unnecessary re-renders
   const graphData = useMemo(() => {
@@ -120,18 +125,14 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
 
     // Extract the trailing number from id or label robustly.
     // Handles: id="3", id="Clause 3", label="clause 3", label="clause unknown_5"
-    const numFromId    = nodeId.replace(/^clause\s*/i, '').trim();
-    const numFromLabel = nodeLabel.replace(/^clause\s*/i, '').trim();
+    const selectedKeys = new Set([
+      normalizeClauseKey(nodeId),
+      normalizeClauseKey(nodeLabel),
+    ]);
 
     return clauseAnalysis.find(c => {
-      const cNum = String(c.clause_number ?? '').trim();
-      return (
-        cNum === numFromId    ||
-        cNum === numFromLabel ||
-        cNum === nodeId       ||
-        // fallback: loose includes so "3" matches "Clause 3"
-        nodeLabel.includes(cNum)
-      );
+      const clauseKey = normalizeClauseKey(c.clause_number);
+      return selectedKeys.has(clauseKey);
     }) ?? null;
   }, [selectedNode, clauseAnalysis]);
 
@@ -230,8 +231,8 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
           { color: '#ff4d4d', label: 'High Priority Risk' },
           { color: '#fbbf24', label: 'Medium Priority' },
           { color: '#34d399', label: 'Low Frequency' },
-          { color: '#3b82f6', label: 'Developer Party' },
-          { color: '#8b5cf6', label: 'Society / RWA' }
+          { color: '#3b82f6', label: 'Contract Entity' },
+          { color: '#8b5cf6', label: 'Entity Reference' }
         ].map(item => (
           <div key={item.label} className="flex items-center space-x-3">
             <div className="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] border border-white/20" style={{ backgroundColor: item.color }} />
@@ -317,7 +318,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ data, clauseAnal
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">
                     {selectedNode.group === 'Clause' 
                       ? "The detailed risk mapping for this clause is being processed or was not found in the primary index. Please re-upload your document to refresh the data grid." 
-                      : "This node represents a primary stakeholder. All outgoing connections represent their direct liabilities and duties as defined in the contract."}
+                      : "This node represents an extracted contract party or entity. Its connections show where the contract references it or assigns obligations to it."}
                   </p>
                 </div>
               </div>
