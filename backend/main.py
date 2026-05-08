@@ -1,12 +1,11 @@
-from fastapi import BackgroundTasks, FastAPI, UploadFile, File, HTTPException, Form, Header
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 import os
 import uuid 
 import shutil
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import json
-import threading
 from starlette.staticfiles import StaticFiles # <-- ADD THIS IMPORT
 
 from notebook_module import (
@@ -52,10 +51,6 @@ app.add_middleware(
 
 BASE_DIR = "data"
 os.makedirs(BASE_DIR, exist_ok=True)
-JOBS_DIR = "jobs"
-os.makedirs(JOBS_DIR, exist_ok=True)
-JOB_STALE_AFTER = timedelta(minutes=15)
-CWD_LOCK = threading.Lock()
 
 # ----------------------------------------------------
 # FIX: MOUNT THE 'data' DIRECTORY FOR STATIC FILE SERVING
@@ -63,158 +58,6 @@ CWD_LOCK = threading.Lock()
 app.mount("/data", StaticFiles(directory=BASE_DIR), name="data")
 # Now, requests to http://127.0.0.1:8000/data/... will be served directly from the local 'data' folder.
 # ----------------------------------------------------
-
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-def job_path(job_id: str) -> str:
-    return os.path.join(JOBS_DIR, f"{job_id}.json")
-
-def atomic_write_json(path: str, data: dict):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    temp_path = f"{path}.tmp"
-    with open(temp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(temp_path, path)
-
-def read_job(job_id: str) -> dict | None:
-    path = job_path(job_id)
-    if not os.path.exists(path):
-        return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
-
-def write_job(job: dict):
-    job["updated_at"] = utc_now_iso()
-    atomic_write_json(job_path(job["job_id"]), job)
-
-def update_job(job_id: str, **updates):
-    job = read_job(job_id) or {"job_id": job_id}
-    job.update(updates)
-    write_job(job)
-
-def create_deep_analysis_job(file_id: str) -> dict:
-    job_id = str(uuid.uuid4())
-    job = {
-        "job_id": job_id,
-        "file_id": file_id,
-        "status": "queued",
-        "progress": 75,
-        "message": "Deep analysis queued.",
-        "result_path": None,
-        "result_url": None,
-        "error": None,
-        "created_at": utc_now_iso(),
-        "updated_at": utc_now_iso(),
-    }
-    atomic_write_json(job_path(job_id), job)
-    return job
-
-def mark_interrupted_if_stale(job: dict) -> dict:
-    if job.get("status") not in {"queued", "running"}:
-        return job
-    try:
-        updated_at = datetime.fromisoformat(job["updated_at"])
-    except (KeyError, ValueError):
-        return job
-    if updated_at.tzinfo is None:
-        updated_at = updated_at.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) - updated_at > JOB_STALE_AFTER:
-        job.update({
-            "status": "interrupted",
-            "message": "The analysis appears to have been interrupted. Please retry.",
-            "error": "The background analysis stopped updating, likely because the free Render instance restarted.",
-        })
-        write_job(job)
-    return job
-
-def run_deep_analysis_job(job_id: str, file_id: str, api_key: str, model_name: str):
-    file_dir = os.path.abspath(os.path.join(BASE_DIR, file_id))
-    result_path = os.path.join(file_dir, FINAL_ANALYSIS_OUTPUT)
-    heartbeat_stop = threading.Event()
-
-    def heartbeat():
-        while not heartbeat_stop.wait(30):
-            update_job(
-                job_id,
-                status="running",
-                progress=90,
-                message="Deep analysis is still running.",
-            )
-
-    heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
-    original_cwd = None
-
-    try:
-        update_job(job_id, status="running", progress=78, message="Configuring AI model.")
-        configure_gemini_api(api_key)
-        set_model_name(model_name)
-
-        update_job(job_id, status="running", progress=80, message="Loading legal retrieval components.")
-        if not load_rag_components():
-            raise RuntimeError("Failed to load RAG components. Ensure FAISS index and metadata exist.")
-
-        if not os.path.isdir(file_dir):
-            raise FileNotFoundError(file_dir)
-
-        with CWD_LOCK:
-            original_cwd = os.getcwd()
-            os.chdir(file_dir)
-            try:
-                update_job(job_id, status="running", progress=84, message="Preparing clause data.")
-                analysis_data = load_and_prepare_data()
-
-                update_job(job_id, status="running", progress=88, message="Running deep legal analysis.")
-                heartbeat_thread.start()
-                final_results = run_analysis_pipeline(analysis_data)
-                heartbeat_stop.set()
-                heartbeat_thread.join(timeout=5)
-
-                update_job(job_id, status="running", progress=96, message="Saving final analysis.")
-                with open(FINAL_ANALYSIS_OUTPUT, "w", encoding="utf-8") as f:
-                    json.dump(final_results, f, indent=2, ensure_ascii=False)
-            finally:
-                heartbeat_stop.set()
-                if heartbeat_thread.is_alive():
-                    heartbeat_thread.join(timeout=5)
-                if original_cwd:
-                    os.chdir(original_cwd)
-
-        update_job(
-            job_id,
-            status="completed",
-            progress=100,
-            message="Deep analysis complete.",
-            result_path=result_path,
-            result_url=f"/data/{file_id}/{FINAL_ANALYSIS_OUTPUT}",
-            error=None,
-        )
-    except FileNotFoundError as e:
-        update_job(
-            job_id,
-            status="failed",
-            progress=100,
-            message="Required analysis file not found. Ensure previous steps are completed.",
-            error=str(e),
-        )
-    except SystemExit as e:
-        update_job(
-            job_id,
-            status="failed",
-            progress=100,
-            message="Deep analysis failed while preparing data.",
-            error=str(e),
-        )
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        update_job(
-            job_id,
-            status="failed",
-            progress=100,
-            message="Error during deep analysis.",
-            error=str(e),
-        )
 
 @app.post("/upload")
 async def upload_pdf(
@@ -319,56 +162,51 @@ async def ambiguity_analysis(
 @app.post("/analyze/deep/{file_id}")
 async def deep_analysis(
     file_id: str,
-    background_tasks: BackgroundTasks,
     x_api_key: str = Header(..., alias="X-Api-Key"),
     x_model_name: str = Header(default="gemini-2.5-flash-lite", alias="X-Model-Name"),
 ):
-    # Validate Gemini configuration before accepting the background job.
+    # Re-configure Gemini with the key and model passed in request headers
     try:
         configure_gemini_api(x_api_key)
         set_model_name(x_model_name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    file_dir = os.path.join(BASE_DIR, file_id)
-    clauses_path = os.path.join(file_dir, CLAUSES_JSON_OUTPUT)
-    ambiguity_path = os.path.join(file_dir, AMBIGUITY_JSON_OUTPUT)
+    file_dir = os.path.join(BASE_DIR, file_id) # This defines the user-specific directory
 
-    if not os.path.isdir(file_dir):
-        raise HTTPException(status_code=404, detail="File not found. Please upload the PDF first.")
-    if not os.path.exists(clauses_path):
-        raise HTTPException(status_code=404, detail="Segmented clauses not found. Run segmentation first.")
-    if not os.path.exists(ambiguity_path):
-        raise HTTPException(status_code=404, detail="Ambiguity analysis not found. Run ambiguity analysis first.")
+    # Load RAG components BEFORE changing directory, as their paths are fixed absolute paths
+    try:
+        if not load_rag_components():
+            raise HTTPException(status_code=500, detail="Failed to load RAG components. Ensure FAISS index and metadata exist.")
 
-    job = create_deep_analysis_job(file_id)
-    background_tasks.add_task(run_deep_analysis_job, job["job_id"], file_id, x_api_key, x_model_name)
+        # NOW, change directory for user-specific files
+        original_cwd = os.getcwd() # Save original CWD
+        os.chdir(file_dir) # Change CWD to the file-specific directory
 
-    return {
-        "message": "Deep analysis started.",
-        "job_id": job["job_id"],
-        "status": job["status"],
-        "progress": job["progress"],
-        "status_url": f"/analyze/deep/status/{job['job_id']}",
-    }
+        # load_and_prepare_data will now correctly look
+        # for CLAUSES_JSON_OUTPUT and AMBIGUITY_JSON_OUTPUT within file_dir
+        analysis_data = load_and_prepare_data()
+        final_results = run_analysis_pipeline(analysis_data)
 
-@app.get("/analyze/deep/status/{job_id}")
-async def deep_analysis_status(job_id: str):
-    job = read_job(job_id)
-    if job is None:
-        return JSONResponse(
-            status_code=200,
-            content={
-                "job_id": job_id,
-                "status": "expired",
-                "progress": 100,
-                "message": "Job state was lost because the free Render instance restarted, redeployed, or spun down. Please run analysis again.",
-                "result_path": None,
-                "result_url": None,
-                "error": "Job file not found.",
-            },
-        )
-    return mark_interrupted_if_stale(job)
+        # Save the final output to the correct file in the current directory (file_dir)
+        # The name 'FINAL_ANALYSIS_OUTPUT' is just a filename, it gets saved in file_dir
+        with open(FINAL_ANALYSIS_OUTPUT, "w", encoding="utf-8") as f: # Not os.path.join(file_dir, FINAL_ANALYSIS_OUTPUT) here as CWD is already file_dir
+            json.dump(final_results, f, indent=2, ensure_ascii=False)
+
+        return {"message": "Deep analysis complete."}
+    except FileNotFoundError as e:
+        # The `SystemExit` from notebook_module.py's load_and_prepare_data
+        # is converted to an HTTPException here.
+        raise HTTPException(status_code=404, detail=f"Required analysis file not found: {e.filename}. Ensure previous steps are completed.")
+    except SystemExit as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error during deep analysis: {e}")
+    finally:
+        if 'original_cwd' in locals():
+            os.chdir(original_cwd)
 
 @app.get("/report/{file_id}")
 async def generate_report(file_id: str): # `file_id` ensures specific user's data is accessed

@@ -8,7 +8,6 @@ export interface SessionUpload {
   status: string;
   progress: number;
   errorMessage?: string;
-  jobId?: string;
 }
 
 export const readSessionUploads = (): SessionUpload[] => {
