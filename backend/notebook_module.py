@@ -11,7 +11,8 @@ import pickle
 import random
 from collections import Counter
 from typing import List, Dict, Any
-
+import nltk
+from nltk.tokenize import word_tokenize
 import google.generativeai as genai
 from google.api_core import exceptions
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
@@ -60,9 +61,15 @@ PDF_REPORT_OUTPUT = "Contract_Decoder_Output.pdf"
 # --- RAG Configuration (for Phase 3) ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Ensure your newly generated index and metadata replace the old ones in this directory
 FAISS_INDEX_PATH = os.path.join(SCRIPT_DIR, "faiss_index.index")
 METADATA_PATH = os.path.join(SCRIPT_DIR, "metadata.pkl")
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+
+# UPDATE: Point to your local fine-tuned folder instead of the HuggingFace default
+EMBEDDING_MODEL_NAME = os.path.join(SCRIPT_DIR, "fine-tuned-legal-minilm")
+
+# ADD: The path to your trained Word2Vec model
+WORD2VEC_MODEL_PATH = os.path.join(SCRIPT_DIR, "legal_word2vec.model")
 
 # --- Processing & Batching Limits ---
 MAX_CHARS_PER_CHUNK = 150_000  # For initial clause segmentation
@@ -336,12 +343,18 @@ faiss_index = None
 metadata = None
 embedding_model = None
 
+faiss_index = None
+metadata = None
+embedding_model = None
+word2vec_model = None  # ADDED global variable for Word2Vec
+
 def load_rag_components():
-    """Loads the FAISS index, metadata, and sentence transformer model into memory."""
-    global faiss_index, metadata, embedding_model
+    """Loads the FAISS index, metadata, sentence transformer, and Word2Vec into memory."""
+    global faiss_index, metadata, embedding_model, word2vec_model
     try:
         import faiss
         from sentence_transformers import SentenceTransformer
+        from gensim.models import Word2Vec  # ADDED import
 
         if faiss_index is None:
             logging.info(f"Loading FAISS index from {FAISS_INDEX_PATH}")
@@ -351,8 +364,13 @@ def load_rag_components():
             with open(METADATA_PATH, 'rb') as f:
                 metadata = pickle.load(f)
         if embedding_model is None:
-            logging.info(f"Loading sentence transformer model: {EMBEDDING_MODEL_NAME}")
+            logging.info(f"Loading fine-tuned sentence transformer: {EMBEDDING_MODEL_NAME}")
             embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        
+        if word2vec_model is None:
+            logging.info(f"Loading Word2Vec model from {WORD2VEC_MODEL_PATH}")
+            word2vec_model = Word2Vec.load(WORD2VEC_MODEL_PATH)
+
         return True
     except FileNotFoundError as e:
         logging.warning(f"RAG component file not found: {e}. RAG context will be disabled.")
@@ -362,11 +380,36 @@ def load_rag_components():
         return False
 
 def retrieve_legal_context(text: str, top_k: int = 3) -> str:
-    """Retrieves relevant legal context for a given text using the RAG system."""
-    if not all([faiss_index, metadata, embedding_model]):
+    """Retrieves relevant legal context using Word2Vec expansion and FAISS search."""
+    if not all([faiss_index, metadata, embedding_model, word2vec_model]):
         return "(RAG components not available)"
     
-    query_embedding = embedding_model.encode([text], normalize_embeddings=True).astype('float32')
+    # 1. SEMANTIC QUERY EXPANSION via Word2Vec
+    expanded_terms = []
+    try:
+        # Tokenize the incoming contract clause
+        words = word_tokenize(text.lower())
+        for word in set(words): # Use set to avoid expanding the same word twice
+            expanded_terms.append(word) # Keep the original word
+            if word.isalpha(): # Only expand actual text, not punctuation
+                try:
+                    # Fetch the top 2 legal synonyms from Word2Vec
+                    similar_words = word2vec_model.wv.most_similar(word, topn=2)
+                    expanded_terms.extend([sim_word for sim_word, score in similar_words])
+                except KeyError:
+                    pass # Word is not in our legal vocabulary, which is fine
+    except Exception as e:
+        logging.warning(f"Word2Vec expansion failed: {e}. Falling back to raw text.")
+        expanded_terms = [text]
+
+    # Combine the original words and the new legal synonyms into one massive string
+    expanded_query = " ".join(expanded_terms)
+    
+    # 2. VECTOR ENCODING via Fine-Tuned MiniLM
+    # We pass the EXPANDED query to the model, not the original text
+    query_embedding = embedding_model.encode([expanded_query], normalize_embeddings=True).astype('float32')
+    
+    # 3. RETRIEVAL via FAISS
     D, I = faiss_index.search(query_embedding, top_k)
 
     results = []
