@@ -11,8 +11,8 @@ numpy>=1.26
 pandas>=2.1
 faiss-cpu>=1.7.4
 torch==2.6.0
+sentence-transformers==3.3.1
 transformers==4.51.0
-sentence-transformers==5.4.1
 matplotlib>=3.8
 seaborn>=0.13
 reportlab>=4.0
