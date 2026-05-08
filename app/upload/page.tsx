@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,21 @@ interface UploadedFile {
   progress: number;
   uploadDate: string;
   errorMessage?: string;
+  jobId?: string;
+}
+
+interface DeepAnalysisJobStatus {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed" | "expired" | "interrupted";
+  progress?: number;
+  message?: string;
+  error?: string;
+}
+
+const DEEP_ANALYSIS_POLL_INTERVAL_MS = 5000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export default function UploadPage() {
@@ -53,6 +68,7 @@ export default function UploadPage() {
   const [showApiKeyText, setShowApiKeyText] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-lite");
   const [isPreparingSample, setIsPreparingSample] = useState(false);
+  const activeDeepPollsRef = useRef<Set<string>>(new Set());
 
   const syncUploadedFiles = useCallback(
     (updater: (prev: UploadedFile[]) => UploadedFile[]) => {
@@ -66,6 +82,7 @@ export default function UploadPage() {
           status: file.status,
           progress: file.progress,
           errorMessage: file.errorMessage,
+          jobId: file.jobId,
         }));
         writeSessionUploads(sessionUploads);
         return next;
@@ -85,9 +102,73 @@ export default function UploadPage() {
         progress: upload.progress,
         uploadDate: upload.uploadDate,
         errorMessage: upload.errorMessage,
+        jobId: upload.jobId,
       })),
     );
   }, []);
+
+  const pollDeepAnalysisJob = useCallback(async (fileId: string, jobId: string) => {
+    if (activeDeepPollsRef.current.has(jobId)) {
+      return;
+    }
+
+    activeDeepPollsRef.current.add(jobId);
+    try {
+      while (true) {
+        const statusResponse = await fetch(apiUrl(`/analyze/deep/status/${jobId}`));
+        if (!statusResponse.ok) {
+          throw new Error("Could not check deep analysis status");
+        }
+
+        const job = (await statusResponse.json()) as DeepAnalysisJobStatus;
+        const progress =
+          typeof job.progress === "number"
+            ? Math.max(75, Math.min(job.progress, 99))
+            : 80;
+
+        if (job.status === "completed") {
+          syncUploadedFiles((prev) =>
+            prev.map((f) =>
+              f.id === fileId ? { ...f, status: "complete", progress: 100 } : f,
+            ),
+          );
+          return;
+        }
+
+        if (["failed", "expired", "interrupted"].includes(job.status)) {
+          throw new Error(job.error || job.message || "Deep analysis did not complete");
+        }
+
+        syncUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId ? { ...f, status: "deep_analysis", progress, jobId } : f,
+          ),
+        );
+
+        await sleep(DEEP_ANALYSIS_POLL_INTERVAL_MS);
+      }
+    } finally {
+      activeDeepPollsRef.current.delete(jobId);
+    }
+  }, [syncUploadedFiles]);
+
+  useEffect(() => {
+    uploadedFiles.forEach((file) => {
+      if (file.status !== "deep_analysis" || !file.jobId || activeDeepPollsRef.current.has(file.jobId)) {
+        return;
+      }
+
+      pollDeepAnalysisJob(file.id, file.jobId).catch((error) => {
+        const errorMessage = getApiErrorMessage(error, "Deep analysis did not complete.");
+        syncUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === file.id ? { ...f, status: "error", errorMessage } : f,
+          ),
+        );
+        toast.error(errorMessage);
+      });
+    });
+  }, [pollDeepAnalysisJob, syncUploadedFiles, uploadedFiles]);
 
   // Function to run the analysis pipeline after a successful upload
   const startAnalysis = useCallback(async (fileId: string, key: string) => {
@@ -129,6 +210,16 @@ export default function UploadPage() {
         { method: "POST", headers: { "X-Api-Key": key, "X-Model-Name": selectedModel } },
       );
       if (!deepAnalysisResponse.ok) throw new Error("Deep analysis failed");
+      const deepAnalysisJob = await deepAnalysisResponse.json();
+      if (!deepAnalysisJob.job_id) {
+        throw new Error("Deep analysis did not return a job id");
+      }
+      syncUploadedFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileId ? { ...f, status: "deep_analysis", progress: 75, jobId: deepAnalysisJob.job_id } : f,
+        ),
+      );
+      await pollDeepAnalysisJob(fileId, deepAnalysisJob.job_id);
 
       // Step 5: Complete (100%)
       syncUploadedFiles((prev) =>
@@ -150,7 +241,7 @@ export default function UploadPage() {
       );
       toast.error(errorMessage);
     }
-  }, [selectedModel, syncUploadedFiles]);
+  }, [pollDeepAnalysisJob, selectedModel, syncUploadedFiles]);
 
   // Function to handle the initial file upload to the FastAPI backend
   const processFile = useCallback(async (file: File) => {

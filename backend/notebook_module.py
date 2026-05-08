@@ -379,36 +379,68 @@ def load_rag_components():
         logging.error(f"An error occurred while loading RAG components: {e}")
         return False
 
+# Legal stop words to exclude from Word2Vec expansion
+LEGAL_STOP_WORDS = {
+    "the", "a", "an", "and", "or", "of", "in", "to", "for", "on", "at",
+    "by", "with", "is", "are", "be", "been", "being", "was", "were",
+    "shall", "will", "may", "must", "any", "all", "such", "this", "that",
+    "these", "those", "no", "not", "its", "it", "as", "if", "from",
+    "into", "upon", "under", "over", "within", "without", "which", "who",
+    "what", "where", "when", "their", "they", "them", "have", "has", "had",
+    "do", "does", "did", "but", "so", "than", "then", "also", "each",
+    "other", "same", "per", "herein", "hereby", "hereof", "thereof",
+}
+
 def retrieve_legal_context(text: str, top_k: int = 3) -> str:
     """Retrieves relevant legal context using Word2Vec expansion and FAISS search."""
     if not all([faiss_index, metadata, embedding_model, word2vec_model]):
         return "(RAG components not available)"
-    
+
     # 1. SEMANTIC QUERY EXPANSION via Word2Vec
     expanded_terms = []
     try:
-        # Tokenize the incoming contract clause
         words = word_tokenize(text.lower())
-        for word in set(words): # Use set to avoid expanding the same word twice
-            expanded_terms.append(word) # Keep the original word
-            if word.isalpha(): # Only expand actual text, not punctuation
-                try:
-                    # Fetch the top 2 legal synonyms from Word2Vec
-                    similar_words = word2vec_model.wv.most_similar(word, topn=2)
-                    expanded_terms.extend([sim_word for sim_word, score in similar_words])
-                except KeyError:
-                    pass # Word is not in our legal vocabulary, which is fine
+
+        # Filter to meaningful legal content words only
+        candidate_words = [
+            w for w in set(words)
+            if w.isalpha() and w not in LEGAL_STOP_WORDS and len(w) > 3
+        ]
+
+        # Score each candidate by Word2Vec similarity confidence
+        # Pick only the top 4 most "legally significant" words to expand
+        scored_words = []
+        for word in candidate_words:
+            if word in word2vec_model.wv:
+                # Use the avg similarity of top neighbors as a proxy for specificity
+                neighbors = word2vec_model.wv.most_similar(word, topn=3)
+                avg_score = sum(score for _, score in neighbors) / len(neighbors)
+                scored_words.append((word, avg_score))
+
+        # Sort descending — higher avg similarity = more domain-specific word
+        scored_words.sort(key=lambda x: x[1], reverse=True)
+        top_words_to_expand = [w for w, _ in scored_words[:4]]
+
+        # Always keep original clause tokens as the base
+        expanded_terms = list(set(words))
+
+        # Only expand the top 4 most significant words, topn=1 neighbor each
+        for word in top_words_to_expand:
+            try:
+                similar_words = word2vec_model.wv.most_similar(word, topn=1)
+                expanded_terms.extend([sim_word for sim_word, score in similar_words if score > 0.7])
+            except KeyError:
+                pass
+
     except Exception as e:
         logging.warning(f"Word2Vec expansion failed: {e}. Falling back to raw text.")
         expanded_terms = [text]
 
-    # Combine the original words and the new legal synonyms into one massive string
     expanded_query = " ".join(expanded_terms)
-    
+
     # 2. VECTOR ENCODING via Fine-Tuned MiniLM
-    # We pass the EXPANDED query to the model, not the original text
     query_embedding = embedding_model.encode([expanded_query], normalize_embeddings=True).astype('float32')
-    
+
     # 3. RETRIEVAL via FAISS
     D, I = faiss_index.search(query_embedding, top_k)
 
